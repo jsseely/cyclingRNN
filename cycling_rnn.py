@@ -126,7 +126,7 @@ def run_rnn(monkey='D',
 
   cell = tf.nn.rnn_cell.BasicRNNCell(n)
   #cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=0.5)
-  cell = tf.nn.rnn_cell.OutputProjectionWrapper(cell)
+  cell = tf.nn.rnn_cell.OutputProjectionWrapper(cell, p)
   output, state = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
 
   #Y_hat = tf.unpack(output)
@@ -141,8 +141,8 @@ def run_rnn(monkey='D',
 
   with tf.variable_scope('RNN/OutputProjectionWrapper/Linear', reuse=True):
     OutMat = tf.get_variable('Matrix', initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1/np.sqrt(n)))
-    C = tf.gather(tf.get_variable('Matrix'), range(p, p+n))
-    d = tf.gather(tf.get_variable('Matrix'), range(0, p))
+    C = tf.get_variable('Matrix')
+    d = tf.get_variable('Bias')
 
   # Training ops
   cost_term1 = tf.reduce_mean((output - Y)**2)
