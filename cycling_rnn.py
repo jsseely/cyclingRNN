@@ -118,19 +118,20 @@ def run_rnn(monkey='D',
 
   x0 = tf.Variable(tf.random_normal([batch_size, n], stddev=0.1), name='x0')
 
-  C = tf.Variable(tf.random_normal([n, p], stddev=1/np.sqrt(n)), name='C')
-  d = tf.Variable(tf.constant(0.01, shape=[1, p]), name='d')
+  #C = tf.Variable(tf.random_normal([n, p], stddev=1/np.sqrt(n)), name='C')
+  #d = tf.Variable(tf.constant(0.01, shape=[1, p]), name='d')
 
-  U = tf.placeholder(tf.float32, [time_steps, None, m], name='U')
-  Y = tf.placeholder(tf.float32, [time_steps, None, p], name='Y')
+  U = tf.placeholder(tf.float32, [None, batch_size, m], name='U')
+  Y = tf.placeholder(tf.float32, [None, batch_size, p], name='Y')
 
   cell = tf.nn.rnn_cell.BasicRNNCell(n)
   #cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=0.5)
+  cell = tf.nn.rnn_cell.OutputProjectionWrapper(cell)
   output, state = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
 
-  Y_hat = tf.unpack(output)
-  Y_hat = [tf.matmul(Y_hat[i], C) + d for i in range(time_steps)]
-  Y_hat = tf.pack(Y_hat)
+  #Y_hat = tf.unpack(output)
+  #Y_hat = [tf.matmul(Y_hat[i], C) + d for i in range(len(Y_hat))]
+  #Y_hat = tf.pack(Y_hat)
 
   with tf.variable_scope('RNN/BasicRNNCell/Linear', reuse=True):
     Mat = tf.get_variable('Matrix', initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1/np.sqrt(n)))
@@ -138,8 +139,13 @@ def run_rnn(monkey='D',
     B = tf.gather(tf.get_variable('Matrix'), range(0, m))
     b = tf.get_variable('Bias')
 
+  with tf.variable_scope('RNN/OutputProjectionWrapper/Linear', reuse=True):
+    OutMat = tf.get_variable('Matrix', initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1/np.sqrt(n)))
+    C = tf.gather(tf.get_variable('Matrix'), range(p, p+n))
+    d = tf.gather(tf.get_variable('Matrix'), range(0, p))
+
   # Training ops
-  cost_term1 = tf.reduce_mean((Y_hat - Y)**2)
+  cost_term1 = tf.reduce_mean((output - Y)**2)
   cost_term2 = beta1*tf.nn.l2_loss(A)
   cost_term3 = beta2*tf.nn.l2_loss(C)
   cost = cost_term1 + cost_term2 + cost_term3
@@ -173,8 +179,9 @@ def run_rnn(monkey='D',
                    U: u_data}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
       
-      # Train on entire sequence
-      sess.run(opt_op, feed_dict={Y: y_cat + np.random.randn(*y_cat.shape)*y_cat.var()*0.2, U: u_cat})
+      if i % 5 == 0:
+        # Train on concatenated sequence
+        sess.run(opt_op, feed_dict={Y: y_cat + np.random.randn(*y_cat.shape)*y_cat.var()*0.2, U: u_cat})
 
       if i % 10 == 0:
         summary_writer.add_summary(summary_str, i)

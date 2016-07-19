@@ -6,7 +6,7 @@ from cycling_rnn import run_rnn
 # Parameters
 MONKEY = 'D'
 BETA1 = np.array([0])
-BETA2 = np.logspace(-2, 0, 21)
+BETA2 = np.array([0])
 
 LEARNING_RATE = 0.0003
 NUM_ITERS = 10000
