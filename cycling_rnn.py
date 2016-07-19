@@ -26,9 +26,9 @@ def augment_data(data_dict):
     """
     can_out = (len(inds_)-1)*[None]
     for i in range(len(inds_)-1):
-        can_out[i] = data_in[inds_[i]:inds_[i+1]]
-        period = int(np.round(np.diff(inds_).mean()))
-        can_out[i] = signal.resample(can_out[i], period)
+      can_out[i] = data_in[inds_[i]:inds_[i+1]]
+      period = int(np.round(np.diff(inds_).mean()))
+      can_out[i] = signal.resample(can_out[i], period)
     can_out = np.stack(can_out).mean(axis=0)
     return np.tile(can_out, (10, 1, 1)), period
 
