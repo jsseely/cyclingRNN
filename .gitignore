@@ -3,4 +3,4 @@
 *.mat
 .ipynb_checkpoints/*
 *.npy
-./saves/*
+saves/
