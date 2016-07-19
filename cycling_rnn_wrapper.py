@@ -1,37 +1,62 @@
-#!/vega/zmbbi/users/jss2219/miniconda2/envs/tensorflow/bin/python
-
+import datetime
+import os
 import numpy as np
-import pickle
-import scipy.io as sio
 from cycling_rnn import run_rnn
 
-npsave_prefix = '/vega/zmbbi/users/jss2219/cyclingRNN/npsaves/'
+# Parameters
+MONKEY = 'D'
+BETA1 = np.array([0])
+BETA2 = np.logspace(-2, 0, 21)
 
-monkey='D'
-beta1 = np.logspace(-3,0,7)
-beta2 = np.logspace(-3,0,7)
-learning_rate = 0.0003
-num_iters=5000
-load_prev=False
-load_model_path=None
-local_machine=False
+LEARNING_RATE = 0.0003
+NUM_ITERS = 10000
+LOAD_PREV = False
+PREV_PATH = None
+LOCAL_MACHINE = True
 
-y_tf = np.zeros((beta1.size, beta2.size), dtype=object)
-x_tf = np.zeros((beta1.size, beta2.size), dtype=object)
-loss_val = np.zeros((beta1.size, beta2.size), dtype=object)
+CUR_RUN = MONKEY+'_'+str(datetime.datetime.now().strftime("%m%d-%H%M-%S"))
 
-for i, i_val in enumerate(beta1):
-  for j, j_val in enumerate(beta2):
-    print i,i_val
-    print j,j_val
-    y_tf[i,j], x_tf[i,j], loss_val[i,j] = run_rnn(monkey=monkey,
-                                                  beta1=i_val,
-                                                  beta2=j_val,
-                                                  learning_rate=learning_rate,
-                                                  num_iters=num_iters,
-                                                  load_prev=load_prev,
-                                                  load_model_path=load_model_path,
-                                                  local_machine=local_machine)
-    np.save(npsave_prefix+'y', y_tf)
-    np.save(npsave_prefix+'x', x_tf)
+if LOCAL_MACHINE:
+  PATH_PREFIX = '/Users/jeff/Documents/Python/_projects/cyclingRNN/'
+  TB_PREFIX = '/tmp/tf/'
+else:
+  PATH_PREFIX = '/vega/zmbbi/users/jss2219/cyclingRNN/'
+  TB_PREFIX = PATH_PREFIX+'tensorboard/'
 
+NPSAVE_PATH = PATH_PREFIX+'saves/'+CUR_RUN+'/npsaves/'
+TFSAVE_PREFIX = PATH_PREFIX+'saves/'+CUR_RUN+'/tfsaves/'
+TB_PREFIX = TB_PREFIX+CUR_RUN+'/'
+
+os.makedirs(NPSAVE_PATH)
+os.makedirs(TFSAVE_PREFIX)
+
+#TODO: write parameters to output text file in ./CUR_RUN/
+
+Y_TF = np.zeros((BETA1.size, BETA2.size), dtype=object)
+X_TF = np.zeros((BETA1.size, BETA2.size), dtype=object)
+LOSS_VAL = np.zeros((BETA1.size, BETA2.size), dtype=object)
+
+for i, i_val in enumerate(BETA1):
+  for j, j_val in enumerate(BETA2):
+    print 'beta 1: %02d, %05f' % (i, i_val) # uh...
+    print 'beta 2: %02d, %05f' % (j, j_val)
+    hp_pf = '%02d_%02d' % (i, j)
+    tb_path = TB_PREFIX+hp_pf # TODO: check -- with or without trailing '/'?
+    tfsave_path = TFSAVE_PREFIX+hp_pf
+    if LOAD_PREV:
+      load_model_path = PATH_PREFIX+'saves/'+PREV_PATH+'/tfsaves/'+hp_pf
+    else:
+      load_model_path = None
+
+    Y_TF[i, j], X_TF[i, j], LOSS_VAL[i, j] = run_rnn(monkey=MONKEY,
+                                                     beta1=i_val,
+                                                     beta2=j_val,
+                                                     learning_rate=LEARNING_RATE,
+                                                     num_iters=NUM_ITERS,
+                                                     load_prev=LOAD_PREV,
+                                                     save_model_path=tfsave_path,
+                                                     load_model_path=load_model_path,
+                                                     tb_path=tb_path,
+                                                     local_machine=LOCAL_MACHINE)
+    np.save(NPSAVE_PATH+'/y', Y_TF)
+    np.save(NPSAVE_PATH+'/x', X_TF)
