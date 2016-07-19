@@ -5,38 +5,25 @@ import tensorflow as tf
 import scipy.io as sio
 from scipy import signal
 
-def augment_data(data_dict):
-  """
-    return a canonical emg
-  """
-  kin = data_dict['D'][0, 0]['KIN']
-  kin = np.reshape(kin.mean(-1), kin.shape[:2]+(4,))
-  kin = np.transpose(kin, [1, 2, 0])
 
-  time_inds = signal.argrelmin(kin[:,0,0]**2)[0]
-  time_inds = time_inds[time_inds > 1500]
-  time_inds = time_inds[time_inds < 4500]
-  time_inds1 = time_inds[:-1:2]
-  time_inds2 = time_inds[1::2]
+  # def get_canon(inds_, data_in):
+  #   """
+  #     get canonical emg data.
+  #     approach is a bit complicated...
+  #   """
+  #   can_out = (len(inds_)-1)*[None]
+  #   for i in range(len(inds_)-1):
+  #     can_out[i] = data_in[inds_[i]:inds_[i+1]]
+  #     period = int(np.round(np.diff(inds_).mean()))
+  #     can_out[i] = signal.resample(can_out[i], period)
+  #   can_out = np.stack(can_out).mean(axis=0)
+  #   return np.tile(can_out, (10, 1, 1)), period
 
-  def get_canon(inds_, data_in):
-    """
-      get canonical emg data.
-      approach is a bit complicated...
-    """
-    can_out = (len(inds_)-1)*[None]
-    for i in range(len(inds_)-1):
-      can_out[i] = data_in[inds_[i]:inds_[i+1]]
-      period = int(np.round(np.diff(inds_).mean()))
-      can_out[i] = signal.resample(can_out[i], period)
-    can_out = np.stack(can_out).mean(axis=0)
-    return np.tile(can_out, (10, 1, 1)), period
-
-  # canon1 
-  canon1, p1 = get_canon(time_inds1, data_dict['D'][0, 0]['EMG'])
-  canon2, p2 = get_canon(time_inds2, data_dict['D'][0, 0]['EMG'])
-  canon = np.mean(np.stack([canon1[p1/2:], canon2[:-p1/2+1]]), axis=0)
-  return canon
+  # # canon1 
+  # canon1, p1 = get_canon(time_inds1, data_dict['D'][0, 0]['EMG'])
+  # canon2, p2 = get_canon(time_inds2, data_dict['D'][0, 0]['EMG'])
+  # canon = np.mean(np.stack([canon1[p1/2:], canon2[:-p1/2+1]]), axis=0)
+  # return canon
 
 def run_rnn(monkey='D',
             beta1=0.0,
@@ -65,6 +52,19 @@ def run_rnn(monkey='D',
   emg = np.reshape(emg, emg.shape[:2]+(4, )) # order = 'C' or 'F'
   emg = np.transpose(emg, [1, 2, 0])
 
+  kin = data['D'][0, 0]['KIN']
+  kin = np.reshape(kin.mean(-1), kin.shape[:2]+(4,))
+  kin = np.transpose(kin, [1, 2, 0])
+
+  # Get time indices
+  time_inds = signal.argrelmin(kin[:,0,0]**2)[0]
+  time_inds = time_inds[time_inds > 1500]
+  time_inds = time_inds[time_inds < 4500]
+  time_inds1 = time_inds[:-1:2]
+  time_inds2 = time_inds[1::2]
+
+  time_axis = np.arange(time_inds2[0], time_inds2[-1], 25)
+
   # Preprocess data
   # Normalize EMG
   max_ = np.max(emg, axis=(0, 1))
@@ -72,8 +72,7 @@ def run_rnn(monkey='D',
   emg_ = (emg - min_)/(max_ - min_)
 
   # Select times + downsample 
-  times = np.arange(2000, 4000, 25)
-  emg_ = emg_[times]
+  emg_ = emg_[time_axis]
 
   # set up data for TF
   time_steps = emg_.shape[0]
@@ -85,6 +84,30 @@ def run_rnn(monkey='D',
   u_data[:, 1, 0] = 1
   u_data[:, 2, 1] = 1
   u_data[:, 3, 1] = 1
+
+  ######
+  def augment_data():
+    """
+      return a canonical emg
+    """
+    can_out = (len(time_inds2)-1)*[None]
+    for i in range(len(time_inds2)-1):
+      can_out[i] = emg[time_inds2[i]:time_inds2[i+1]]
+      period = int(np.round(np.diff(time_inds2).mean()))
+      can_out[i] = signal.resample(can_out[i], period)
+    can_out = np.stack(can_out).mean(axis=0)
+    return np.tile(can_out, (10, 1, 1))
+
+  # Get 'canonical' EMG data
+  # TODO: simplify
+  y_cat = augment_data()
+  y_cat = y_cat[::25]
+  u_cat = np.zeros(y_cat.shape[:2]+(m, ))
+  u_cat[:, 0, 0] = 1
+  u_cat[:, 1, 0] = 1
+  u_cat[:, 2, 1] = 1
+  u_cat[:, 3, 1] = 1
+  ######
 
   ## TF part
   tf.reset_default_graph()
@@ -142,7 +165,7 @@ def run_rnn(monkey='D',
     summary_writer = tf.train.SummaryWriter(tb_path, graph=sess.graph)
     sess.run(tf.initialize_all_variables())
     if load_prev and os.path.exists(load_model_path):
-      saver.restore(sess, load_model_path) 
+      saver.restore(sess, load_model_path)
 
     for i in range(num_iters):
       # TODO: is the noise here necessary? What is the right scaling?
@@ -150,6 +173,9 @@ def run_rnn(monkey='D',
                    U: u_data}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
       
+      # Train on entire sequence
+      sess.run(opt_op, feed_dict={Y: y_cat + np.random.randn(*y_cat.shape)*y_cat.var()*0.2, U: u_cat})
+
       if i % 10 == 0:
         summary_writer.add_summary(summary_str, i)
 
