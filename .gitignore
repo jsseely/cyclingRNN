@@ -2,3 +2,5 @@
 *.sublime-workspace
 *.mat
 .ipynb_checkpoints/*
+*.npy
+./saves/*
