@@ -4,7 +4,7 @@ import numpy as np
 from cycling_rnn import run_rnn
 
 # Parameters
-MONKEY = 'D'
+MONKEY = 'C'
 BETA1 = np.array([0])
 BETA2 = np.array([0])
 
@@ -36,6 +36,7 @@ Y_TF = np.zeros((BETA1.size, BETA2.size), dtype=object)
 X_TF = np.zeros((BETA1.size, BETA2.size), dtype=object)
 LOSS_VAL = np.zeros((BETA1.size, BETA2.size), dtype=object)
 
+print 'Current Run: '+CUR_RUN
 for i, i_val in enumerate(BETA1):
   for j, j_val in enumerate(BETA2):
     print 'beta 1: %02d, %05f' % (i, i_val) # uh...

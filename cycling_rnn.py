@@ -5,7 +5,6 @@ import tensorflow as tf
 import scipy.io as sio
 from scipy import signal
 
-
   # def get_canon(inds_, data_in):
   #   """
   #     get canonical emg data.
@@ -19,11 +18,57 @@ from scipy import signal
   #   can_out = np.stack(can_out).mean(axis=0)
   #   return np.tile(can_out, (10, 1, 1)), period
 
-  # # canon1 
+  # # canon1
   # canon1, p1 = get_canon(time_inds1, data_dict['D'][0, 0]['EMG'])
   # canon2, p2 = get_canon(time_inds2, data_dict['D'][0, 0]['EMG'])
   # canon = np.mean(np.stack([canon1[p1/2:], canon2[:-p1/2+1]]), axis=0)
   # return canon
+
+def get_time_inds(data_in):
+  """ 
+  """
+  kin = data_in['D'][0, 0]['KIN']
+  kin = np.reshape(kin.mean(-1), kin.shape[:2]+(4,))
+  kin = np.transpose(kin, [1, 2, 0])
+
+  # Get time indices
+  time_inds = signal.argrelmin(kin[:, 0, 0]**2)[0]
+  time_inds = time_inds[time_inds > 1500]
+  time_inds = time_inds[time_inds < 4500]
+  t_inds1 = time_inds[:-1:2] # cycle 1:2, 2:3, 3:4, 4:5... 
+  t_inds2 = time_inds[1::2] # cycle 1.5:2.5, 2.5:3.5, 3.5:4.5...
+  return t_inds1, t_inds2
+
+def pre_process_emg(data_in):
+  emg = data_in['D'][0, 0]['EMG']
+  emg = np.reshape(emg, emg.shape[:2]+(4, )) # order = 'C' or 'F'
+  emg = np.transpose(emg, [1, 2, 0])
+
+  # Normalize EMG
+  max_ = np.max(emg, axis=(0, 1))
+  min_ = np.min(emg, axis=(0, 1))
+  return (emg - min_)/(max_ - min_)
+
+def augment_data(emg_in, t_inds, tiles=10):
+  """
+    return a canonical emg
+  """
+  can_out = (len(t_inds) - 1)*[None]
+  for i in range(len(t_inds) - 1):
+    can_out[i] = emg_in[t_inds[i]:t_inds[i + 1]]
+    period = int(np.round(np.diff(time_inds2).mean())) # time_inds2 should be t_inds, but setting all 'periods' the same for now.
+    can_out[i] = signal.resample(can_out[i], period)
+  can_out = np.stack(can_out).mean(axis=0)
+  return np.tile(can_out, (tiles, 1, 1))
+
+def create_input_array(shape_in):
+  m = 2
+  u_out = np.zeros(shape_in[:2] + (m, ))
+  u_out[:, 0, 0] = 1
+  u_out[:, 1, 0] = 1
+  u_out[:, 2, 1] = 1
+  u_out[:, 3, 1] = 1
+  return u_out
 
 def run_rnn(monkey='D',
             beta1=0.0,
@@ -48,86 +93,67 @@ def run_rnn(monkey='D',
   else:
     data = sio.loadmat(path_prefix+'cousFeb.mat')
 
-  emg = data['D'][0, 0]['EMG']
-  emg = np.reshape(emg, emg.shape[:2]+(4, )) # order = 'C' or 'F'
-  emg = np.transpose(emg, [1, 2, 0])
-
-  kin = data['D'][0, 0]['KIN']
-  kin = np.reshape(kin.mean(-1), kin.shape[:2]+(4,))
-  kin = np.transpose(kin, [1, 2, 0])
-
-  # Get time indices
-  time_inds = signal.argrelmin(kin[:,0,0]**2)[0]
-  time_inds = time_inds[time_inds > 1500]
-  time_inds = time_inds[time_inds < 4500]
-  time_inds1 = time_inds[:-1:2]
-  time_inds2 = time_inds[1::2]
-
-  time_axis = np.arange(time_inds2[0], time_inds2[-1], 25)
-
   # Preprocess data
-  # Normalize EMG
-  max_ = np.max(emg, axis=(0, 1))
-  min_ = np.min(emg, axis=(0, 1))
-  emg_ = (emg - min_)/(max_ - min_)
+  emg = pre_process_emg(data)
+  time_inds1, time_inds2 = get_time_inds(data)
+  time_axis = np.arange(time_inds2[0], time_inds2[-1], 25)
+  y_data1 = emg[time_axis]
+  p = y_data1.shape[-1]
 
-  # Select times + downsample 
-  emg_ = emg_[time_axis]
-
-  # set up data for TF
-  time_steps = emg_.shape[0]
-  y_data = emg_
-
+  # build inputs
   m = 2
-  u_data = np.zeros(y_data.shape[:2]+(m, ))
-  u_data[:, 0, 0] = 1
-  u_data[:, 1, 0] = 1
-  u_data[:, 2, 1] = 1
-  u_data[:, 3, 1] = 1
+  u_data1 = create_input_array(y_data1.shape)
 
+  ###### Augmented data
+  y_cat1 = augment_data(emg, time_inds1, tiles=10)
+  y_cat1 = y_cat1[::25]
+  y_cat2 = augment_data(emg, time_inds2, tiles=10)
+  y_cat2 = y_cat2[::25]
+
+  u_cat1 = create_input_array(y_cat1.shape)
+  u_cat2 = create_input_array(y_cat2.shape)
   ######
-  def augment_data():
-    """
-      return a canonical emg
-    """
-    can_out = (len(time_inds2)-1)*[None]
-    for i in range(len(time_inds2)-1):
-      can_out[i] = emg[time_inds2[i]:time_inds2[i+1]]
-      period = int(np.round(np.diff(time_inds2).mean()))
-      can_out[i] = signal.resample(can_out[i], period)
-    can_out = np.stack(can_out).mean(axis=0)
-    return np.tile(can_out, (10, 1, 1))
 
-  # Get 'canonical' EMG data
-  # TODO: simplify
-  y_cat = augment_data()
-  y_cat = y_cat[::25]
-  u_cat = np.zeros(y_cat.shape[:2]+(m, ))
-  u_cat[:, 0, 0] = 1
-  u_cat[:, 1, 0] = 1
-  u_cat[:, 2, 1] = 1
-  u_cat[:, 3, 1] = 1
+  ###### Sequences
+  sequence_length = [y_data1.shape[0], y_cat1.shape[0], y_cat2.shape[0]]
+  y_data = np.zeros((np.max(sequence_length), 4*3, p))
+  u_data = np.zeros((np.max(sequence_length), 4*3, m))
+
+  y_data[:sequence_length[0], 0:4, :] = y_data1
+  y_data[:sequence_length[1], 4:8, :] = y_cat1
+  y_data[:sequence_length[2], 8:12, :] = y_cat2
+
+  u_data[:sequence_length[0], 0:4, :] = u_data1
+  u_data[:sequence_length[1], 4:8, :] = u_cat1
+  u_data[:sequence_length[2], 8:12, :] = u_cat2
   ######
 
   ## TF part
   tf.reset_default_graph()
 
   n = 100 # n = 100 neurons
-  p = y_data.shape[-1] # p = 36 muscles
   batch_size = y_data.shape[1]
 
   x0 = tf.Variable(tf.random_normal([batch_size, n], stddev=0.1), name='x0')
 
-  #C = tf.Variable(tf.random_normal([n, p], stddev=1/np.sqrt(n)), name='C')
-  #d = tf.Variable(tf.constant(0.01, shape=[1, p]), name='d')
+  C = tf.Variable(tf.random_normal([n, p], stddev=1/np.sqrt(n)), name='C')
+  d = tf.Variable(tf.constant(0.01, shape=[1, p]), name='d')
 
   U = tf.placeholder(tf.float32, [None, batch_size, m], name='U')
   Y = tf.placeholder(tf.float32, [None, batch_size, p], name='Y')
 
+  time_steps = tf.shape(U)[0]
+
   cell = tf.nn.rnn_cell.BasicRNNCell(n)
   #cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=0.5)
-  cell = tf.nn.rnn_cell.OutputProjectionWrapper(cell, p)
+  #cell_wrapped = tf.nn.rnn_cell.OutputProjectionWrapper(cell, p)
+  #Y_hat, _ = tf.nn.dynamic_rnn(cell_wrapped, U, initial_state=x0, dtype=tf.float32, time_major=True)
+  #states, _ = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
   output, state = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
+
+  Y_hat = tf.reshape(output, (time_steps*batch_size, n))
+  Y_hat = tf.matmul(Y_hat, C) + d
+  Y_hat = tf.reshape(Y_hat, (time_steps, batch_size, p))
 
   #Y_hat = tf.unpack(output)
   #Y_hat = [tf.matmul(Y_hat[i], C) + d for i in range(len(Y_hat))]
@@ -139,13 +165,13 @@ def run_rnn(monkey='D',
     B = tf.gather(tf.get_variable('Matrix'), range(0, m))
     b = tf.get_variable('Bias')
 
-  with tf.variable_scope('RNN/OutputProjectionWrapper/Linear', reuse=True):
-    OutMat = tf.get_variable('Matrix', initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1/np.sqrt(n)))
-    C = tf.get_variable('Matrix')
-    d = tf.get_variable('Bias')
+  # with tf.variable_scope('RNN/OutputProjectionWrapper/Linear', reuse=True):
+  #   OutMat = tf.get_variable('Matrix', initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1/np.sqrt(n)))
+  #   C = tf.get_variable('Matrix')
+  #   d = tf.get_variable('Bias')
 
   # Training ops
-  cost_term1 = tf.reduce_mean((output - Y)**2)
+  cost_term1 = tf.reduce_mean((Y_hat - Y)**2)
   cost_term2 = beta1*tf.nn.l2_loss(A)
   cost_term3 = beta2*tf.nn.l2_loss(C)
   cost = cost_term1 + cost_term2 + cost_term3
@@ -179,9 +205,9 @@ def run_rnn(monkey='D',
                    U: u_data}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
       
-      if i % 5 == 0:
-        # Train on concatenated sequence
-        sess.run(opt_op, feed_dict={Y: y_cat + np.random.randn(*y_cat.shape)*y_cat.var()*0.2, U: u_cat})
+      # if i % 1 == 0:
+      #   # Train on concatenated sequence
+      #   sess.run(opt_op, feed_dict={Y: y_cat + np.random.randn(*y_cat.shape)*y_cat.var()*0.2, U: u_cat})
 
       if i % 10 == 0:
         summary_writer.add_summary(summary_str, i)

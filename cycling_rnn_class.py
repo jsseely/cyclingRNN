@@ -43,7 +43,7 @@ class RNN(object):
     Y_hat = [tf.matmul(Y_hat[i], C) + d for i in range(self.time_steps)]
     Y_hat = tf.pack(Y_hat)
 
-    #output_diff = tf.gather(output, range(1,time_steps))-tf.gather(output, range(0,time_steps-1))
+    output_diff = tf.gather(output, range(1,time_steps))-tf.gather(output, range(0,time_steps-1))
 
     #Get A matrix
     with tf.variable_scope('RNN/BasicRNNCell/Linear', reuse=True):
