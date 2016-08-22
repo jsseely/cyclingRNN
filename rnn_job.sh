@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 #PBS -N cyclingRNN
 #PBS -W group_list=yetizmbbi
-#PBS -l nodes=1,walltime=10:00:00,mem=200mb
+#PBS -l walltime=10:00:00,mem=2000mb
 #PBS -M jss2219@columbia.edu
 #PBS -m abe
 #PBS -V
