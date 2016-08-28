@@ -10,3 +10,4 @@ saves/*
 *.pyc
 ./saves/
 ./saves/*
+*.pdf
