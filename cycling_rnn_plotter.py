@@ -1,3 +1,10 @@
+"""
+  A script that runs summary analyses on a particular cluster run, and prints out .pdfs
+  in the same folder.
+
+  Usage:
+    > python cycling_rnn_plotter.py RUNID
+"""
 import numpy as np
 import scipy.io as sio
 import sklearn as sk
@@ -12,127 +19,153 @@ import pandas as pd
 from sklearn.grid_search import ParameterGrid
 
 import pickle
+import sys
+import pprint
+
 
 from cycling_rnn import *
 
-## functions
-def make_pairgrid(d):
-  ''' in: (d1,d2,d3,d4) '''
-  df = pd.DataFrame(np.concatenate(d))
-  cond_labels = d[0].shape[0]*['fw top'] + d[1].shape[0]*['fw bot'] + d[2].shape[0]*['bw top'] + d[3].shape[0]*['bw bot']
-  df['condition'] = cond_labels
-  g = sns.PairGrid(df, hue='condition', diag_sharey=True)
-  g.map_diag(plt.hist)
-  g.map_offdiag(plt.plot)
-  dmax = np.max(np.concatenate(d))
-  g.add_legend()
-  return g
-
-def plot_eigs(A_mat):
-  """
-    Docstring
-  """
-  w, _ = np.linalg.eig(A_mat)
-  re_w = np.real(w)
-  im_w = np.imag(w)
-  f = plt.figure(figsize=(5, 5))
-  plt.plot(re_w, im_w, 'o', alpha=0.9)
-  theta = np.linspace(0, 2*np.pi, num=50)
-  x_cir = np.cos(theta)
-  y_cir = np.sin(theta)
-  plt.plot(x_cir, y_cir, 'k', linewidth=0.5, alpha=0.5)
-  plt.plot([-100, 100], [0, 0], 'k', linewidth=0.5, alpha=0.5)
-  plt.plot([0, 0], [-100, 100], 'k', linewidth=0.5, alpha=0.5)
-  plt.xlim([-1.5, 1.5])
-  plt.ylim([-1.5, 1.5])
-  return f
-
-# Load data.
-RUN = '0822-1343-02'
-pth = './saves/'+RUN+'/'
-x_tf = np.load(pth+'npsaves/x.npy')
-y_tf = np.load(pth+'npsaves/y.npy')
-param_grid = pickle.load(open(pth+'npsaves/param_grid.pickle'))
-print x_tf.shape
-print param_grid
+# TODO: call matlab plotter
+# TODO: make matlab plotter return actual values for the analyses
+# e.g. in a mat file
+# then write another function to scan through all analyses and get the 
+# overall quality of the RNN ... 
 
 # Color maps
 cmap = sns.color_palette('RdBu', 5)[:2] + sns.color_palette('RdBu', 5)[-2:]
 sns.set_palette(cmap)
 sns.set_context('paper', font_scale=1.5)
 
-for i_, cur_params in enumerate(ParameterGrid(param_grid)):
+# Load data.
+pth = './saves/'+str(sys.argv[1])+'/'
+param_grid = pickle.load(open(pth+'npsaves/param_grid.pickle', 'rb'))
+
+# TODO: check if list of dicts, then do:
+val_lengths = []
+for p in range(len(param_grid)):
+  val_lengths.append([len(v) for k, v in sorted(param_grid[p].items())])
+# Else do:
+
+# Number of sims in pth
+total_sims = len(ParameterGrid(param_grid))
+
+for sim, cur_params in enumerate(ParameterGrid(param_grid)):
+  
+  # load x and y data
+  xpth = pth+'npsaves/'+str(sim)+'x.npy'
+  ypth = pth+'npsaves/'+str(sim)+'y.npy'
+  if not (os.path.exists(xpth) and os.path.exists(ypth)):
+    continue
+  x = np.load(xpth)
+  y = np.load(ypth)
+
   print cur_params
-  param_inds = np.unravel_index(i_, x_tf.shape) # TODO: 'C' or 'F'? Pretty sure this is right.
 
-  # Inefficient loading of data each iteration.
-  if cur_params['monkey'] == 'D':
-    data = sio.loadmat('/Users/jeff/Documents/Python/_projects/cyclingRNN/drakeFeb.mat')
+  # TODO: fix time_axis save/restore...
+  if cur_params['monkey']=='D':
+    data = sio.loadmat('/Users/jeff/Documents/Python/_projects/cyclingRNN/drakeFeb_processed.mat')
+    #time_axis = np.arange(2043, 4019, 25)
   else:
-    data = sio.loadmat('/Users/jeff/Documents/Python/_projects/cyclingRNN/cousFeb.mat')
+    data = sio.loadmat('/Users/jeff/Documents/Python/_projects/cyclingRNN/cousFeb_processed.mat')
+    #time_axis = np.arange(2094, 4220, 25)
 
-  # Preprocess data
-  emg = preprocess_array(data['D'][0, 0]['EMG'])
-  m1 = preprocess_array(data['D'][0, 0]['M1'], alpha=5)
+  emg = data['EMG']
+  m1 = data['M1']
 
-  time_axis, time_inds1, time_inds2 = get_time_axis(data['D'][0, 0]['KIN'])
-
-  emg = emg[time_axis]
-  m1 = m1[time_axis]
-
-  # down-select data
-  for ii in range(x_tf.size):
-    param_inds = np.unravel_index(ii, x_tf.shape)
-    x_tf[param_inds] = x_tf[param_inds][:emg.shape[0], :emg.shape[1], :]
-    y_tf[param_inds] = y_tf[param_inds][:emg.shape[0], :emg.shape[1], :]
+  x = x[:emg.shape[0], :emg.shape[1], :]
+  y = y[:emg.shape[0], :emg.shape[1], :]
 
   # Plot 1: emg fits
-  rows = 4
+  rows = 6
   cols = 2
   with sns.color_palette(n_colors=4):
-    f, ax = plt.subplots(rows, cols, figsize=(20, 20))
+    f, ax = plt.subplots(rows, cols,  figsize=(14, 12), sharex=True, sharey=False,
+                         subplot_kw={'xticklabels':[], 'yticklabels':[]},
+                         gridspec_kw={'wspace':0.01, 'hspace':0.01})
     for i in range(rows):
       for j in range(cols):
         muscle = np.ravel_multi_index((i, j), (rows, cols))
         ax[i, j].plot(emg[:, :, muscle], linewidth=1.5, alpha=0.8)
-        ax[i, j].plot(y_tf[param_inds][:, :, muscle], '--', linewidth=3, alpha=1)
-        ax[i, j].set_title(str(muscle))
-  f.suptitle(cur_params, fontsize=16)
-  f.savefig(pth+str(i_)+'fit.pdf') # TODO: proper formatting on str(i)
+        ax[i, j].plot(y[:, :, muscle], '--', linewidth=3, alpha=1)
+  f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
+             verticalalignment='bottom', horizontalalignment='left')
+  f.savefig(pth+str(sim)+'fit.pdf', bbox_inches='tight', pad_inces=0.2) # TODO: proper formatting on str(i)
   f.clf()
 
   # Plot 2: RNN PCs
   pca_x = sk.decomposition.PCA(n_components=5)
-  pca_x.fit(np.concatenate([x_tf[param_inds][:, ii, :] for ii in range(4)]))
-  # plot PCs for the RNN state variable
-  f = make_pairgrid([np.dot(x_tf[param_inds][:, ii, :], pca_x.components_.T) for ii in range(4)])
-  f.fig.suptitle(cur_params, fontsize=16)
-  f.fig.savefig(pth+str(i_)+'pca.pdf')
+  pca_x.fit(np.concatenate([x[:, ii, :] for ii in range(4)]))
+  f = make_pairgrid([np.dot(x[:, ii, :], pca_x.components_.T) for ii in range(4)])
+  f.fig.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.05, y=1.0,
+                            verticalalignment='bottom', horizontalalignment='left') 
+  f.fig.savefig(pth+str(sim)+'pca.pdf', bbox_inches='tight', pad_inces=0.2)
   f.fig.clf()
 
   # Plot 3: Eigenvalues
   tf.reset_default_graph()
   with tf.Session() as sess:
-    new_saver = tf.train.import_meta_graph(pth+'tfsaves/'+str(i_)+'.meta')
-    new_saver.restore(sess, pth+'tfsaves/'+str(i_))
-    Mat = sess.run([v for v in tf.all_variables() if v.name == 'RNN/BasicRNNCell/Linear/Matrix:0'])[0]
+    new_saver = tf.train.import_meta_graph(pth+'tfsaves/'+str(sim)+'.meta')
+    new_saver.restore(sess, pth+'tfsaves/'+str(sim))
+    Mat = sess.run([v for v in tf.all_variables() if v.name == 'RNN/BasicRNNCellNoise/Linear/Matrix:0'])[0]
     input_dims = Mat.shape[0]-Mat.shape[1]
     A = Mat[input_dims:]
     B = Mat[:input_dims]
   f = plot_eigs(A)
-  f.savefig(pth+str(i_)+'eig.pdf')
+  f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
+             verticalalignment='bottom', horizontalalignment='left')
+  f.savefig(pth+str(sim)+'eig.pdf', bbox_inches='tight', pad_inces=0.2)
   f.clf()
 
   # Plot 4: RNN activations
-  rows = 10
-  cols = 4
-  f, ax = plt.subplots(rows, cols, figsize=(20, 20))
+  rows = 3
+  cols = 3
+  f, ax = plt.subplots(rows,cols, figsize=(14, 8), sharex=True, sharey=True,
+                       subplot_kw={'ylim':[-1, 1], 'xticklabels':[], 'yticklabels':[]},
+                       gridspec_kw={'wspace':0.01, 'hspace':0.01})
   for i in range(rows):
     for j in range(cols):
       neuron = np.ravel_multi_index((i, j), (rows, cols))
-      ax[i, j].plot(x_tf[param_inds][:, :, neuron])
-      ax[i, j].set_title(str(neuron))
-  f.suptitle(cur_params, fontsize=16)
-  f.savefig(pth+str(i_)+'act.pdf')
-  plt.close('all')
+      ax[i, j].plot(x[:, :, neuron])
+  f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
+             verticalalignment='bottom', horizontalalignment='left')
+  f.savefig(pth+str(sim)+'act.pdf', bbox_inches='tight', pad_inces=0.2)
+  plt.clf()
 
+  # Plot 5: Curvature:
+  m1_k = np.zeros(m1.shape[:-1])
+  x_k = np.zeros(x.shape[:-1])
+  emg_k = np.zeros(emg.shape[:-1])
+  for c in range(4):
+    m1_k[:, c] = get_curvature(m1[:, c, :])
+    emg_k[:, c] = get_curvature(emg[:, c, :])
+    x_k[:, c] = get_curvature(x[:, c, :])
+
+  with sns.color_palette('Set1'):
+    f, ax = plt.subplots(2,2, figsize=(14, 8), sharex=True, sharey=True,
+                         subplot_kw={'ylim':[0, 2], 'xticklabels':[], 'yticklabels':[]},
+                         gridspec_kw={'wspace':0.01, 'hspace':0.01})
+    ax[0, 0].plot(m1_k[:, 0])
+    ax[0, 0].plot(x_k[:, 0])
+    ax[0, 0].plot(emg_k[:, 0])
+    ax[0, 0].set_title('top forward', y=0.9)
+    
+    ax[0, 1].plot(m1_k[:, 1])
+    ax[0, 1].plot(x_k[:, 1])
+    ax[0, 1].plot(emg_k[:, 1])
+    ax[0, 1].set_title('bot forward', y=0.9)
+    
+    ax[1, 0].plot(m1_k[:, 2])
+    ax[1, 0].plot(x_k[:, 2])
+    ax[1, 0].plot(emg_k[:, 2])
+    ax[1, 0].set_title('top backward', y=0.9)
+
+    ax[1, 1].plot(m1_k[:, 3])
+    ax[1, 1].plot(x_k[:, 3])
+    ax[1, 1].plot(emg_k[:, 3])
+    ax[1, 1].set_title('bot backward', y=0.9)
+    ax[1, 1].legend(iter(ax[1,1].get_children()[:3]), ('M1', 'RNN', 'EMG'))
+
+    f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
+               verticalalignment='bottom', horizontalalignment='left')
+    f.savefig(pth+str(sim)+'curv.pdf', bbox_inches='tight', pad_inces=0.2)
+    plt.close('all')

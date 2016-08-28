@@ -1,13 +1,95 @@
+"""
+  A collection of functions for the 'cycling RNN' project.
+  run_rnn is the main function that builds the tensorflow graph and does the training.
+"""
 import datetime
 import os
 import numpy as np
 import tensorflow as tf
 import scipy.io as sio
 from scipy import signal
+from custom_rnn_cells import BasicRNNCellNoise
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+import copy
+
+# TODO: write custom logspace function
+# 0.001, .003, .01, .03, etc.
+# rounding
+# define granularity -- 0.01, 0.1 vs 0.01, 0.03, 0.1, etc
+
+# Plotting functions
+def make_pairgrid(d):
+  """
+    sns.PairGrid plotter for cycling data
+    in: (d1,d2,d3,d4)
+  """
+  df = pd.DataFrame(np.concatenate(d))
+  cond_labels = d[0].shape[0]*['fw top'] + d[1].shape[0]*['fw bot'] + d[2].shape[0]*['bw top'] + d[3].shape[0]*['bw bot']
+  df['condition'] = cond_labels
+  g = sns.PairGrid(df, hue='condition', diag_sharey=True)
+  g.map_diag(plt.hist)
+  g.map_offdiag(plt.plot)
+  g.add_legend()
+  return g
+
+def plot_eigs(A_mat):
+  """
+    Docstring
+  """
+  w, _ = np.linalg.eig(A_mat)
+  re_w = np.real(w)
+  im_w = np.imag(w)
+  f = plt.figure(figsize=(10, 10))
+  plt.plot(re_w, im_w, 'o', alpha=0.9)
+  theta = np.linspace(0, 2*np.pi, num=50)
+  x_cir = np.cos(theta)
+  y_cir = np.sin(theta)
+  plt.plot(x_cir, y_cir, 'k', linewidth=0.5, alpha=0.5)
+  plt.plot([-100, 100], [0, 0], 'k', linewidth=0.5, alpha=0.5)
+  plt.plot([0, 0], [-100, 100], 'k', linewidth=0.5, alpha=0.5)
+  plt.xlim([-1.5, 1.5])
+  plt.ylim([-1.5, 1.5])
+  return f
+
+# Preprocessing functions
+def parameter_grid_split(param_grid):
+  """
+    Takes a parameter grid dict, creates a list of dicts,
+    where each new dict (in the list) varies only along one of its
+    entries. Thus, instead of exhaustive grid search we are just 
+    searching along individual hyperparameter axes.
+
+    Probably a more elegant way to implement this without so many control flow
+    statements.
+  """
+  keys = sorted(param_grid.keys())
+  
+  # Initialize first entry
+  grid_out = [copy.deepcopy(param_grid)]
+  for l in range(len(param_grid)):
+    grid_out[0][keys[l]] = [param_grid[keys[l]][0]]
+
+  # add new entries
+  for l in range(len(param_grid)):
+    if len(param_grid[keys[l]]) > 1:
+      new_grid = copy.deepcopy(param_grid)
+      for k in range(len(new_grid)):
+        if k != l:
+          new_grid[keys[k]] = [param_grid[keys[k]][0]]
+        else:
+          new_grid[keys[k]] = param_grid[keys[k]][1:]
+      grid_out.append(new_grid)
+  return grid_out
+
 
 def preprocess_array(array, alpha=0):
   """
     Basic preprocessing.
+    TODO: remove reshape/transpose. just save _preprocessed data
+    use this function to normalize...
   """
   array = np.reshape(array, array.shape[:2] + (4,)) # order = 'C' or 'F'
   array = np.transpose(array, [1, 2, 0])
@@ -19,8 +101,12 @@ def preprocess_array(array, alpha=0):
 
 def get_time_axis(kin):
   """ 
+    Raw data is sampled every 1ms.
+    We want every 25ms to make BPTT easier.
+    We also want movement-period only.
     Input: kinematic array, data['D'][0,0]['KIN']
     Output: time_axis, t_inds1, t_inds2
+      time_axis: 
       t_inds1: cycle 1:2, 2:3, 3:4, 4:5, 5:6
       t_inds2: cycle 1.5:2.5, 2.5:3.5, 3.5:4.5, 4.5:5.5
   """
@@ -40,6 +126,9 @@ def get_time_axis(kin):
 
 def augmented_data(emg_in, t_inds, period, tiles=10):
   """
+    Calculates a 'canonical cycle' of movementby averaging a few cycles together
+    Then concatenates the cycles in time.
+    This just creates more data for the RNN to fit.
   """
   signal_out = (len(t_inds) - 1)*[None]
   for i in range(len(t_inds) - 1):
@@ -50,6 +139,9 @@ def augmented_data(emg_in, t_inds, period, tiles=10):
 
 def create_input_array(shape_in):
   """
+    create shape (T,c,m) inupt array
+    First input is 1 for forward movement
+    Second input is 1 for backward movement
   """
   u_out = np.zeros(shape_in[:2] + (2,))
   u_out[:, 0, 0] = 1
@@ -58,10 +150,50 @@ def create_input_array(shape_in):
   u_out[:, 3, 1] = 1
   return u_out
 
+def get_curvature(signal_in):
+  """
+    Input: a (T, n) array
+    Output: a (T,) array of curvature values
+    
+    Curvature value at, say, t=5 takes datapoints at t=4,5,6, 
+    finds the circumscribed circle and corresponding radius of curvature.
+    Curvature is 1/radius.
+
+    [wikipedia link]
+
+    There is likely a better method for getting curvature:
+    e.g. fit a 2nd order polynomial to a few data points around t,
+    then find osculating circle of the polynomial at t.
+  """
+  def cross_id1(a, b, c):
+    """
+      Not needed.
+    """
+    return np.dot(a, c)*b - np.dot(a, b)*c
+
+  def cross_id2(a, b):
+    """
+      cross product identity for ||a x b||
+    """
+    return np.sqrt(np.linalg.norm(a)**2*np.linalg.norm(b)**2 - np.dot(a, b)**2)
+
+  k = np.zeros(signal_in.shape[0])
+  for t in range(1, signal_in.shape[0]-1):
+    A, B, C = signal_in[t-1:t+2]
+    r = np.linalg.norm(A)*np.linalg.norm(B)*np.linalg.norm(A-B)/(2*cross_id2(A, B))
+    k[t] = 1/r
+
+  # fix start and end values
+  k[0] = k[1]
+  k[-1] = k[-2]
+  return k
+
 def run_rnn(monkey='D',
             beta1=0.0,
             beta2=0.0,
-            activation=tf.tanh,
+            stddev_state=0.0,
+            stddev_out=0.0,
+            activation='tanh',
             num_neurons=100,
             learning_rate=0.0001,
             num_iters=2000,
@@ -70,16 +202,38 @@ def run_rnn(monkey='D',
             load_model_path=None,
             tb_path='./tensorboard/',
             local_machine=True):
-
+  """
+    monkey: 'D' or 'C'
+    beta1: regularization hyperparameter for l2_loss(A)
+    beta2: regularization hyperparameter for l2_loss(C)
+    stddev_state: stddev of injected noise in state variable
+    stddev_out: stddev of injected noise in output
+    activation: nonlinearity for the RNN. use lambda x: x for linear.
+    num_neurons: state dimension
+    learning_rate: learning rate for Adam
+    num_iters: training iterations
+    load_prev: whether or not to load the previous TF variables
+    save_model_path: where to save the TF model using tf.train.Saver()
+    load_model_path: If load_prev=True, where to load the previous model
+    tb_path: tensorboard path
+    local_machine: is this a local machine or cluster run?
+  """
   if local_machine:
     path_prefix = '/Users/jeff/Documents/Python/_projects/cyclingRNN/'
   else:
     path_prefix = '/vega/zmbbi/users/jss2219/cyclingRNN/'
 
+  # TODO: just load *_preprocessed.mat data.
   if monkey == 'D':
     data = sio.loadmat(path_prefix+'drakeFeb.mat')
   else:
     data = sio.loadmat(path_prefix+'cousFeb.mat')
+
+  # Set activation
+  if activation is 'tanh':
+    activation = tf.tanh
+  elif activation is 'linear':
+    activation = lambda x: x
 
   # Preprocess data
   emg = preprocess_array(data['D'][0, 0]['EMG'])
@@ -87,11 +241,12 @@ def run_rnn(monkey='D',
   y_data1 = emg[time_axis]
   p = y_data1.shape[-1]
 
-  # build inputs
+  # Build inputs
   m = 2
   u_data1 = create_input_array(y_data1.shape)
 
-  ###### Augmented data
+  # Augmented data
+  # For regularizing the network -- it must fit actual and augmented data
   period = int(np.round(np.diff(time_inds2).mean()))
   y_cat1 = augmented_data(emg, time_inds1, period=period, tiles=10)
   y_cat1 = y_cat1[::25]
@@ -100,9 +255,7 @@ def run_rnn(monkey='D',
 
   u_cat1 = create_input_array(y_cat1.shape)
   u_cat2 = create_input_array(y_cat2.shape)
-  ######
 
-  ###### Sequences
   sequence_length = [y_data1.shape[0], y_cat1.shape[0], y_cat2.shape[0]]
   y_data = np.zeros((np.max(sequence_length), 4*3, p))
   u_data = np.zeros((np.max(sequence_length), 4*3, m))
@@ -114,9 +267,8 @@ def run_rnn(monkey='D',
   u_data[:sequence_length[0], 0:4, :] = u_data1
   u_data[:sequence_length[1], 4:8, :] = u_cat1
   u_data[:sequence_length[2], 8:12, :] = u_cat2
-  ######
 
-  ## TF part
+  # Tensorflow graph
   tf.reset_default_graph()
 
   n = num_neurons
@@ -132,15 +284,15 @@ def run_rnn(monkey='D',
 
   time_steps = tf.shape(U)[0]
 
-  cell = tf.nn.rnn_cell.BasicRNNCell(n, activation=activation)
-  #cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=0.5)
+  cell = BasicRNNCellNoise(n, activation=activation, stddev=stddev_state)
   output, state = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
 
   Y_hat = tf.reshape(output, (time_steps*batch_size, n))
   Y_hat = tf.matmul(Y_hat, C) + d
   Y_hat = tf.reshape(Y_hat, (time_steps, batch_size, p))
 
-  with tf.variable_scope('RNN/BasicRNNCell/Linear', reuse=True):
+  # Get RNN variables
+  with tf.variable_scope('RNN/BasicRNNCellNoise/Linear', reuse=True):
     Mat = tf.get_variable('Matrix', initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1/np.sqrt(n)))
     A = tf.gather(tf.get_variable('Matrix'), range(m, m+n))
     B = tf.gather(tf.get_variable('Matrix'), range(0, m))
@@ -177,15 +329,14 @@ def run_rnn(monkey='D',
       saver.restore(sess, load_model_path)
 
     for i in range(num_iters):
-      # TODO: is the noise here necessary? What is the right scaling?
-      feed_dict = {Y: y_data + np.random.randn(*y_data.shape)*y_data.var()*0.1,
+      feed_dict = {Y: y_data + np.random.randn(*y_data.shape)*y_data.var()*stddev_out,
                    U: u_data}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
 
-      if i % 10 == 0:
+      if i % 50 == 0:
         summary_writer.add_summary(summary_str, i)
 
-      if i % 1000 == 0:
+      if i % 500 == 0:
         print '  iter:', '%04d' % (i), \
               '  Loss:', '{:.6f}'.format(loss_val)
         saver.save(sess, save_model_path)
