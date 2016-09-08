@@ -12,4 +12,4 @@
 # Reminder: use source activate tensorflow before running:
 # source /vega/zmbbi/users/jss2219/miniconda2/bin/activate tensorflow
 
-LD_LIBRARY_PATH="/vega/zmbbi/users/jss2219/glibc/lib/x86_64-linux-gnu/:/vega/zmbbi/users/jss2219/glibc/usr/lib64/" /vega/zmbbi/users/jss2219/glibc/lib/x86_64-linux-gnu/ld-2.17.so `which python` cycling_rnn_wrapper_yeti.py $PBS_ARRAYID "8-27c"
+LD_LIBRARY_PATH="/vega/zmbbi/users/jss2219/glibc/lib/x86_64-linux-gnu/:/vega/zmbbi/users/jss2219/glibc/usr/lib64/" /vega/zmbbi/users/jss2219/glibc/lib/x86_64-linux-gnu/ld-2.17.so `which python` cycling_rnn_wrapper_yeti.py $PBS_ARRAYID "8-29"

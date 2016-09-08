@@ -13,14 +13,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+import numpy.polynomial.polynomial as P
+
 import copy
+
+import pdb
 
 # TODO: write custom logspace function
 # 0.001, .003, .01, .03, etc.
 # rounding
 # define granularity -- 0.01, 0.1 vs 0.01, 0.03, 0.1, etc
 
-# Plotting functions
+### PLOTTING
 def make_pairgrid(d):
   """
     sns.PairGrid plotter for cycling data
@@ -54,7 +58,7 @@ def plot_eigs(A_mat):
   plt.ylim([-1.5, 1.5])
   return f
 
-# Preprocessing functions
+### PREPROCESSING
 def parameter_grid_split(param_grid):
   """
     Takes a parameter grid dict, creates a list of dicts,
@@ -83,7 +87,6 @@ def parameter_grid_split(param_grid):
           new_grid[keys[k]] = param_grid[keys[k]][1:]
       grid_out.append(new_grid)
   return grid_out
-
 
 def preprocess_array(array, alpha=0):
   """
@@ -150,6 +153,13 @@ def create_input_array(shape_in):
   u_out[:, 3, 1] = 1
   return u_out
 
+### ANALYSES
+def get_path_length(signal_in):
+  """
+    Get the total path length of signal_in...
+  """
+  return 0
+
 def get_curvature(signal_in):
   """
     Input: a (T, n) array
@@ -187,6 +197,75 @@ def get_curvature(signal_in):
   k[0] = k[1]
   k[-1] = k[-2]
   return k
+
+def get_generalized_curvature(signal_in, total_points, deg):
+  """
+    Calculate curvature of n-dimensional trajectory, signal_in of shape (t, n)
+    Use total_points adjacent points to fit a polynomial of degree deg
+    Then calculate generalized curvature explicitly from the polynomial
+    total_points: ~11
+    deg: ~5
+  """
+
+  def dt_id1(a, ap):
+    """ 
+      derivative of a/norm(a)
+      input: a and da/dt, a and da/dt are n-dim vectors
+      output: d/dt ( a/norm(a) )
+    """
+    return ap/np.linalg.norm(a) - np.dot(ap, a)*a/(np.dot(a, a)**(1.5))
+
+  def dt_id2(a, b, ap, bp):
+    """ 
+      derivative of inner(a, b)*b
+      input: a, b, da/dt, db/dt, each an n-dim vector
+      output: d/dt ( iner(a, b)*b )
+    """
+    return (np.dot(ap, b) + np.dot(a, bp))*b + np.dot(a, b)*bp
+
+  total_curvatures = np.min((signal_in.shape[1]-1, deg-1)) # have many curvatures to calculate
+  k_t = np.zeros((signal_in.shape[0], total_curvatures)) # initialize curvatures, k
+  e_t = np.zeros(signal_in.shape+(total_curvatures+1,)) # frenet frames, (t, n, curvatures+1)
+
+  half = np.floor(total_points/2).astype(int)
+
+  for t in range(half, signal_in.shape[0] - half): # end point correct?
+    times = np.arange(t-half, t+half+1)
+    times_local = times - t # will always be -half:half
+    tmid = times_local[half] # tmid = 0
+    p = P.polyfit(times_local, signal_in[times], deg)
+    pp = [] # coefficients of polynomial (and its derivatives)
+    pt = [] # polynomial (and its derivs) evaluated at time t
+    for deriv in range(deg+2): # +2 because there are deg+1 nonzero derivatives of the polynomial, and +1 because of range()
+      pp.append(P.polyder(p, deriv))
+      pt.append(P.polyval(tmid, pp[-1]).T) # evaluate at 0
+
+    e = [] # frenet basis, e1, e2, ... at time t
+    ep = [] # derevatives, e1', e2', ...
+    e_ = [] # unnormalized es
+    e_p = [] # unnormalized (e')s
+
+    k = [] # generalized curvature at time t
+
+    # first axis of frenet frame
+    e.append(pt[1]/np.linalg.norm(pt[1]))
+    ep.append(dt_id1(pt[1], pt[2]))
+
+    for dim in range(2, total_curvatures+2):
+      # Start gram-schmidt orthogonalization on e:
+      e_.append(pt[dim])
+      e_p.append(pt[dim+1])
+      for j in range(dim-1):
+        e_[-1] = e_[-1] - np.dot(pt[dim], e[j])*e[j] # orthogonalize relative to every other e
+        e_p[-1] = e_p[-1] - dt_id2(pt[dim], e[j], pt[dim+1], ep[j]) # derivative of e_
+      e.append(e_[-1]/np.linalg.norm(e_[-1])) # normalize e_ to get e
+      ep.append(dt_id1(e_[-1], e_p[-1])) # derivative of e
+
+      k.append(np.dot(ep[-2], e[-1])/np.linalg.norm(pt[1]))
+    k_t[t, :] = np.array(k)
+    e_t[t, :, :] = np.array(e).T
+
+  return k_t, e_t
 
 def run_rnn(monkey='D',
             beta1=0.0,

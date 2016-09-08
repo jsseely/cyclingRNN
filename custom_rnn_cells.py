@@ -51,5 +51,5 @@ class BasicRNNCellNoise(rnn_cell.RNNCell):
   def __call__(self, inputs, state, scope=None):
     """Most basic RNN: output = new_state = activation(W * input + U * state + B + noise)."""
     with vs.variable_scope(scope or type(self).__name__):  # "BasicRNNCell"
-      output = self._activation(rnn_cell._linear([inputs, state + random_ops.random_normal([self._num_units], stddev=self._stddev)], self._num_units, True))
+      output = self._activation(rnn_cell._linear([inputs, state], self._num_units, True) + random_ops.random_normal([self._num_units], stddev=self._stddev))
     return output, output

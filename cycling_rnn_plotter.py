@@ -132,36 +132,50 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
   plt.clf()
 
   # Plot 5: Curvature:
-  m1_k = np.zeros(m1.shape[:-1])
-  x_k = np.zeros(x.shape[:-1])
-  emg_k = np.zeros(emg.shape[:-1])
+  total_points = 11
+  deg = 4
+  k_m1 = 4*[None]
+  k_emg = 4*[None]
+  k_x = 4*[None]
   for c in range(4):
-    m1_k[:, c] = get_curvature(m1[:, c, :])
-    emg_k[:, c] = get_curvature(emg[:, c, :])
-    x_k[:, c] = get_curvature(x[:, c, :])
+    k_m1[c], _ = get_generalized_curvature(m1[:, c, :], total_points, deg)
+    k_emg[c], _ = get_generalized_curvature(emg[:, c, :], total_points, deg)
+    k_x[c], _ = get_generalized_curvature(x[:, c, :], total_points, deg)
 
-  with sns.color_palette('Set1'):
+  with sns.color_palette('Set1', 3):
     f, ax = plt.subplots(2,2, figsize=(14, 8), sharex=True, sharey=True,
-                         subplot_kw={'ylim':[0, 2], 'xticklabels':[], 'yticklabels':[]},
+                         subplot_kw={'ylim':[0, 6], 'xticklabels':[], 'yticklabels':[]},
                          gridspec_kw={'wspace':0.01, 'hspace':0.01})
-    ax[0, 0].plot(m1_k[:, 0])
-    ax[0, 0].plot(x_k[:, 0])
-    ax[0, 0].plot(emg_k[:, 0])
+    ax[0, 0].plot(k_m1[0][:, 0])
+    ax[0, 0].plot(k_x[0][:, 0])
+    ax[0, 0].plot(k_emg[0][:, 0])
+    ax[0, 0].plot(k_m1[0][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[0, 0].plot(k_x[0][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[0, 0].plot(k_emg[0][:, 1], '--', linewidth=1, alpha=0.8)
     ax[0, 0].set_title('top forward', y=0.9)
     
-    ax[0, 1].plot(m1_k[:, 1])
-    ax[0, 1].plot(x_k[:, 1])
-    ax[0, 1].plot(emg_k[:, 1])
+    ax[0, 1].plot(k_m1[1][:, 0])
+    ax[0, 1].plot(k_x[1][:, 0])
+    ax[0, 1].plot(k_emg[1][:, 0])
+    ax[0, 1].plot(k_m1[1][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[0, 1].plot(k_x[1][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[0, 1].plot(k_emg[1][:, 1], '--', linewidth=1, alpha=0.8)
     ax[0, 1].set_title('bot forward', y=0.9)
     
-    ax[1, 0].plot(m1_k[:, 2])
-    ax[1, 0].plot(x_k[:, 2])
-    ax[1, 0].plot(emg_k[:, 2])
+    ax[1, 0].plot(k_m1[2][:, 0])
+    ax[1, 0].plot(k_x[2][:, 0])
+    ax[1, 0].plot(k_emg[2][:, 0])
+    ax[1, 0].plot(k_m1[2][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[1, 0].plot(k_x[2][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[1, 0].plot(k_emg[2][:, 1], '--', linewidth=1, alpha=0.8)
     ax[1, 0].set_title('top backward', y=0.9)
 
-    ax[1, 1].plot(m1_k[:, 3])
-    ax[1, 1].plot(x_k[:, 3])
-    ax[1, 1].plot(emg_k[:, 3])
+    ax[1, 1].plot(k_m1[3][:, 0])
+    ax[1, 1].plot(k_x[3][:, 0])
+    ax[1, 1].plot(k_emg[3][:, 0])
+    ax[1, 1].plot(k_m1[3][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[1, 1].plot(k_x[3][:, 1], '--', linewidth=1, alpha=0.8)
+    ax[1, 1].plot(k_emg[3][:, 1], '--', linewidth=1, alpha=0.8)
     ax[1, 1].set_title('bot backward', y=0.9)
     ax[1, 1].legend(iter(ax[1,1].get_children()[:3]), ('M1', 'RNN', 'EMG'))
 

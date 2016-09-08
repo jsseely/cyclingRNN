@@ -24,18 +24,8 @@ param_grid['beta1'] = np.concatenate((np.array([0]), np.logspace(-7, -2, 21)), a
 param_grid['beta2'] = np.concatenate((np.array([0]), np.logspace(-5, 0, 21)), axis=0)
 param_grid['stddev_state'] = np.concatenate((np.array([0]), np.logspace(-5, 0, 21)), axis=0)
 param_grid['stddev_out'] = np.concatenate((np.array([0]), np.logspace(-4, 1, 21)), axis=0)
-param_grid['monkey'] =['D']
+param_grid['monkey'] =['C']
 param_grid['num_neurons'] = np.concatenate((np.array([100]).astype(int), np.round(np.logspace(1, 3, 21)).astype(int)), axis=0)
-
-val_lengths = [len(v) for k, v in sorted(param_grid.items())]
-
-# Make a copy of param_grid to export to matlab.
-param_grid_matlab = copy.deepcopy(param_grid)
-param_grid_matlab['val_lengths'] = val_lengths
-param_grid_matlab['sorted'] = sorted(param_grid)
-
-# val_lengths ordered by keys
-# Important: apparently ParameterGrid() orders lexicographically based on keys.
 
 # Split param_grid to search along hyperparameter axes only
 param_grid = parameter_grid_split(param_grid)
@@ -106,5 +96,5 @@ Y_TF, X_TF = run_rnn(monkey=cur_params['monkey'],
 
 np.save(NPSAVE_PATH+str(i)+'y', Y_TF)
 np.save(NPSAVE_PATH+str(i)+'x', X_TF)
-sio.savemat(MLSAVE_PATH+str(i)+'.mat', mdict={'X': X_TF, 'Y': Y_TF, 'params': param_grid_matlab})
+sio.savemat(MLSAVE_PATH+str(i)+'.mat', mdict={'X': X_TF, 'Y': Y_TF, 'params': cur_params})
 
