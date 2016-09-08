@@ -89,7 +89,7 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
         ax[i, j].plot(y[:, :, muscle], '--', linewidth=3, alpha=1)
   f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
              verticalalignment='bottom', horizontalalignment='left')
-  f.savefig(pth+str(sim)+'fit.pdf', bbox_inches='tight', pad_inces=0.2) # TODO: proper formatting on str(i)
+  f.savefig(pth+str(sim)+'fit.pdf', bbox_inches='tight', pad_inches=0.2) # TODO: proper formatting on str(i)
   f.clf()
 
   # Plot 2: RNN PCs
@@ -98,7 +98,7 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
   f = make_pairgrid([np.dot(x[:, ii, :], pca_x.components_.T) for ii in range(4)])
   f.fig.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.05, y=1.0,
                             verticalalignment='bottom', horizontalalignment='left') 
-  f.fig.savefig(pth+str(sim)+'pca.pdf', bbox_inches='tight', pad_inces=0.2)
+  f.fig.savefig(pth+str(sim)+'pca.pdf', pad_inches=0.2)
   f.fig.clf()
 
   # Plot 3: Eigenvalues
@@ -113,7 +113,7 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
   f = plot_eigs(A)
   f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
              verticalalignment='bottom', horizontalalignment='left')
-  f.savefig(pth+str(sim)+'eig.pdf', bbox_inches='tight', pad_inces=0.2)
+  f.savefig(pth+str(sim)+'eig.pdf', bbox_inches='tight', pad_inches=0.2)
   f.clf()
 
   # Plot 4: RNN activations
@@ -128,7 +128,7 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
       ax[i, j].plot(x[:, :, neuron])
   f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
              verticalalignment='bottom', horizontalalignment='left')
-  f.savefig(pth+str(sim)+'act.pdf', bbox_inches='tight', pad_inces=0.2)
+  f.savefig(pth+str(sim)+'act.pdf', bbox_inches='tight', pad_inches=0.2)
   plt.clf()
 
   # Plot 5: Curvature:
@@ -181,5 +181,5 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
 
     f.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.12, y=0.92,
                verticalalignment='bottom', horizontalalignment='left')
-    f.savefig(pth+str(sim)+'curv.pdf', bbox_inches='tight', pad_inces=0.2)
+    f.savefig(pth+str(sim)+'curv.pdf', bbox_inches='tight', pad_inches=0.2)
     plt.close('all')
