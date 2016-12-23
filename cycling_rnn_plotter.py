@@ -98,7 +98,7 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
   f = make_pairgrid([np.dot(x[:, ii, :], pca_x.components_.T) for ii in range(4)])
   f.fig.suptitle(pprint.pformat(cur_params), fontsize=14, x=0.05, y=1.0,
                             verticalalignment='bottom', horizontalalignment='left') 
-  f.fig.savefig(pth+str(sim)+'pca.pdf', pad_inches=0.2)
+  f.fig.savefig(pth+str(sim)+'pca.pdf', bbox_inches='tight', pad_inches=0.2)
   f.fig.clf()
 
   # Plot 3: Eigenvalues

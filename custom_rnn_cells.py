@@ -28,7 +28,7 @@ from tensorflow.python.platform import tf_logging as logging
 ### custom
 from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import rnn_cell
-## /end custom
+### /end custom
 
 class BasicRNNCellNoise(rnn_cell.RNNCell):
   """The most basic RNN cell with noise"""

@@ -309,9 +309,9 @@ def run_rnn(monkey='D',
     data = sio.loadmat(path_prefix+'cousFeb.mat')
 
   # Set activation
-  if activation is 'tanh':
+  if activation == 'tanh':
     activation = tf.tanh
-  elif activation is 'linear':
+  elif activation == 'linear':
     activation = lambda x: x
 
   # Preprocess data
@@ -361,9 +361,11 @@ def run_rnn(monkey='D',
   U = tf.placeholder(tf.float32, [None, batch_size, m], name='U')
   Y = tf.placeholder(tf.float32, [None, batch_size, p], name='Y')
 
+  noise_state = tf.placeholder(tf.float32, name='stddev_state')
+
   time_steps = tf.shape(U)[0]
 
-  cell = BasicRNNCellNoise(n, activation=activation, stddev=stddev_state)
+  cell = BasicRNNCellNoise(n, activation=activation, stddev=noise_state)
   output, state = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
 
   Y_hat = tf.reshape(output, (time_steps*batch_size, n))
@@ -409,7 +411,8 @@ def run_rnn(monkey='D',
 
     for i in range(num_iters):
       feed_dict = {Y: y_data + np.random.randn(*y_data.shape)*y_data.var()*stddev_out,
-                   U: u_data}
+                   U: u_data,
+                   noise_state: stddev_state}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
 
       if i % 50 == 0:
