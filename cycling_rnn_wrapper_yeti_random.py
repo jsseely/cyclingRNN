@@ -1,5 +1,6 @@
 """
-  Random hyperparameters (12-14-16 version of ).
+  Random hyperparameters (12-14-16 version of cycling_rnn_wrapper_yeti). Uses random hyperparameters instead of a range.
+  This one is for 'C'
 
   A wrapper function to specify hyperparameters and loop through run_rnn
   Customized for the Yeti HPC to take in array submissions.
@@ -30,9 +31,7 @@ param_grid['stddev_out']    = 10**np.random.uniform(-4, 0, size=1)
 param_grid['monkey']        = np.random.choice(['C'], size=1)
 param_grid['num_neurons']   = np.array([100]).astype(int)
 
-# Split param_grid to search along hyperparameter axes only
 cur_params = ParameterGrid(param_grid)[0]
-#param_grid = parameter_grid_split(param_grid)
 
 # Fixed parameters
 LEARNING_RATE = 0.0003
@@ -68,13 +67,12 @@ make_dir(NPSAVE_PATH)
 make_dir(TFSAVE_PATH)
 make_dir(MLSAVE_PATH)
 
-# save param-grid (split version)
-pickle.dump(param_grid, open(NPSAVE_PATH+'param_grid.pickle', 'wb'))
-
 print 'Current Run: '+CUR_RUN
 
 i = int(sys.argv[1])
-#cur_params = ParameterGrid(param_grid)[i]
+
+# save params
+pickle.dump(cur_params, open(NPSAVE_PATH+str(i)+'params.pickle', 'wb'))
 
 print cur_params
 

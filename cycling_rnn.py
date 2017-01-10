@@ -154,11 +154,18 @@ def create_input_array(shape_in):
   return u_out
 
 ### ANALYSES
-def get_path_length(signal_in):
+def get_path_length(signal_in, filt_freq=None):
   """
-    Get the total path length of signal_in...
+    Get the total path length of signal_in. Sum of Euclidean distances of nearby points. Filtering with a butterworth filter is optional.
+    signal_in: a (T, batch_size, n) array
+    filt_freq: filter frequency for signal.butter
+    Output: a (batch_size,) array of path lengths
   """
-  return 0
+  if filt_freq is not None:
+    from scipy import signal
+    b, a = signal.butter(4, filt_freq)
+    signal_in = signal.filtfilt(b, a, signal_in, axis=0)
+  return np.sum(np.sum(np.diff(signal_in, axis=0)**2, axis=-1)**0.5, axis=0)
 
 def get_curvature(signal_in):
   """
@@ -219,7 +226,7 @@ def get_generalized_curvature(signal_in, total_points, deg):
     """ 
       derivative of inner(a, b)*b
       input: a, b, da/dt, db/dt, each an n-dim vector
-      output: d/dt ( iner(a, b)*b )
+      output: d/dt ( inner(a, b)*b )
     """
     return (np.dot(ap, b) + np.dot(a, bp))*b + np.dot(a, b)*bp
 
@@ -241,7 +248,7 @@ def get_generalized_curvature(signal_in, total_points, deg):
       pt.append(P.polyval(tmid, pp[-1]).T) # evaluate at 0
 
     e = [] # frenet basis, e1, e2, ... at time t
-    ep = [] # derevatives, e1', e2', ...
+    ep = [] # derivatives, e1', e2', ...
     e_ = [] # unnormalized es
     e_p = [] # unnormalized (e')s
 
@@ -365,12 +372,15 @@ def run_rnn(monkey='D',
 
   time_steps = tf.shape(U)[0]
 
-  cell = BasicRNNCellNoise(n, activation=activation, stddev=noise_state)
+  # BasicRNNCellNoise - inelegant solution to adding state noise to RNNs. but not sure of an elegant method.
+  # TODO: scale cell noise by num_neurons... 1/sqrt(n)? 
+  cell = BasicRNNCellNoise(n, activation=activation, stddev=noise_state, batch_size=batch_size)
   output, state = tf.nn.dynamic_rnn(cell, U, initial_state=x0, dtype=tf.float32, time_major=True)
 
+  print output.name
   Y_hat = tf.reshape(output, (time_steps*batch_size, n))
   Y_hat = tf.matmul(Y_hat, C) + d
-  Y_hat = tf.reshape(Y_hat, (time_steps, batch_size, p))
+  Y_hat = tf.reshape(Y_hat, (time_steps, batch_size, p), name='Y_hat')
 
   # Get RNN variables
   with tf.variable_scope('RNN/BasicRNNCellNoise/Linear', reuse=True):
@@ -380,7 +390,7 @@ def run_rnn(monkey='D',
     b = tf.get_variable('Bias')
 
   # Training ops
-  cost_term1 = tf.reduce_mean((Y_hat - Y)**2)
+  cost_term1 = tf.reduce_mean((Y_hat - Y)**2, name='cost1')
   cost_term2 = beta1*tf.nn.l2_loss(A)
   cost_term3 = beta2*tf.nn.l2_loss(C)
   cost = cost_term1 + cost_term2 + cost_term3
