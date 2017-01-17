@@ -24,10 +24,11 @@ import sys
 param_grid = {}
 
 param_grid['activation']    = np.random.choice(['tanh'], size=1)
-param_grid['beta1']         = 10**np.random.uniform(-7, -3, size=1)
-param_grid['beta2']         = 10**np.random.uniform(-5, -2, size=1)
-param_grid['stddev_state']  = 10**np.random.uniform(-5, -1, size=1)
-param_grid['stddev_out']    = 10**np.random.uniform(-4, 0, size=1)
+param_grid['beta1']         = 10**np.random.uniform(-6, 2, size=1)
+param_grid['beta2']         = 10**np.random.uniform(-6, 2, size=1)
+param_grid['stddev_state']  = 10**np.random.uniform(-6, 2, size=1)
+#param_grid['stddev_out']    = 10**np.random.uniform(-4, 0, size=1)
+param_grid['stddev_out']    = np.random.choice([0.], size=1)
 param_grid['monkey']        = np.random.choice(['D'], size=1)
 param_grid['num_neurons']   = np.array([100]).astype(int)
 
