@@ -1,4 +1,7 @@
-
+"""
+  set of functions for analyzing geometric properties of 
+  signals of shape (time, batch_size, dimension)
+"""
 
 def tangling(signal_in, alpha=0.1, dt=0.025):
   '''
@@ -157,3 +160,122 @@ def get_sum_of_jacobians(sim, x_in, u_in, norm='fro', squared=True):
   R = np.true_divide(R, np.prod(x_in.shape[:2]))
   return R
 
+def get_path_length(signal_in, filt_freq=None):
+  """
+    Get the total path length of signal_in. Sum of Euclidean distances of nearby points. Filtering with a butterworth filter is optional.
+    signal_in: a (T, batch_size, n) array
+    filt_freq: filter frequency for signal.butter
+    Output: a (batch_size,) array of path lengths
+  """
+  if filt_freq is not None:
+    from scipy import signal
+    b, a = signal.butter(4, filt_freq)
+    signal_in = signal.filtfilt(b, a, signal_in, axis=0)
+  return np.sum(np.sum(np.diff(signal_in, axis=0)**2, axis=-1)**0.5, axis=0)
+
+def get_curvature(signal_in):
+  """
+    Input: a (T, n) array
+    Output: a (T,) array of curvature values
+    
+    Curvature value at, say, t=5 takes datapoints at t=4,5,6, 
+    finds the circumscribed circle and corresponding radius of curvature.
+    Curvature is 1/radius.
+
+    [wikipedia link]
+
+    There is likely a better method for getting curvature:
+    e.g. fit a 2nd order polynomial to a few data points around t,
+    then find osculating circle of the polynomial at t.
+  """
+  def cross_id1(a, b, c):
+    """
+      Not needed.
+    """
+    return np.dot(a, c)*b - np.dot(a, b)*c
+
+  def cross_id2(a, b):
+    """
+      cross product identity for ||a x b||
+    """
+    return np.sqrt(np.linalg.norm(a)**2*np.linalg.norm(b)**2 - np.dot(a, b)**2)
+
+  k = np.zeros(signal_in.shape[0])
+  for t in range(1, signal_in.shape[0]-1):
+    A, B, C = signal_in[t-1:t+2]
+    r = np.linalg.norm(A)*np.linalg.norm(B)*np.linalg.norm(A-B)/(2*cross_id2(A, B))
+    k[t] = 1/r
+
+  # fix start and end values
+  k[0] = k[1]
+  k[-1] = k[-2]
+  return k
+
+def get_generalized_curvature(signal_in, total_points, deg):
+  """
+    Calculate curvature of n-dimensional trajectory, signal_in of shape (t, n)
+    Use total_points adjacent points to fit a polynomial of degree deg
+    Then calculate generalized curvature explicitly from the polynomial
+    total_points: ~11
+    deg: ~5
+  """
+
+  def dt_id1(a, ap):
+    """ 
+      derivative of a/norm(a)
+      input: a and da/dt, a and da/dt are n-dim vectors
+      output: d/dt ( a/norm(a) )
+    """
+    return ap/np.linalg.norm(a) - np.dot(ap, a)*a/(np.dot(a, a)**(1.5))
+
+  def dt_id2(a, b, ap, bp):
+    """ 
+      derivative of inner(a, b)*b
+      input: a, b, da/dt, db/dt, each an n-dim vector
+      output: d/dt ( inner(a, b)*b )
+    """
+    return (np.dot(ap, b) + np.dot(a, bp))*b + np.dot(a, b)*bp
+
+  total_curvatures = np.min((signal_in.shape[1]-1, deg-1)) # have many curvatures to calculate
+  k_t = np.zeros((signal_in.shape[0], total_curvatures)) # initialize curvatures, k
+  e_t = np.zeros(signal_in.shape+(total_curvatures+1,)) # frenet frames, (t, n, curvatures+1)
+
+  half = np.floor(total_points/2).astype(int)
+
+  for t in range(half, signal_in.shape[0] - half): # end point correct?
+    times = np.arange(t-half, t+half+1)
+    times_local = times - t # will always be -half:half
+    tmid = times_local[half] # tmid = 0
+    p = P.polyfit(times_local, signal_in[times], deg)
+    pp = [] # coefficients of polynomial (and its derivatives)
+    pt = [] # polynomial (and its derivs) evaluated at time t
+    for deriv in range(deg+2): # +2 because there are deg+1 nonzero derivatives of the polynomial, and +1 because of range()
+      pp.append(P.polyder(p, deriv))
+      pt.append(P.polyval(tmid, pp[-1]).T) # evaluate at 0
+
+    e = [] # frenet basis, e1, e2, ... at time t
+    ep = [] # derivatives, e1', e2', ...
+    e_ = [] # unnormalized es
+    e_p = [] # unnormalized (e')s
+
+    k = [] # generalized curvature at time t
+
+    # first axis of frenet frame
+    e.append(pt[1]/np.linalg.norm(pt[1]))
+    ep.append(dt_id1(pt[1], pt[2]))
+
+    for dim in range(2, total_curvatures+2):
+      # Start gram-schmidt orthogonalization on e:
+      e_.append(pt[dim])
+      e_p.append(pt[dim+1])
+      for j in range(dim-1):
+        e_[-1] = e_[-1] - np.dot(pt[dim], e[j])*e[j] # orthogonalize relative to every other e
+        e_p[-1] = e_p[-1] - dt_id2(pt[dim], e[j], pt[dim+1], ep[j]) # derivative of e_
+      e.append(e_[-1]/np.linalg.norm(e_[-1])) # normalize e_ to get e
+      ep.append(dt_id1(e_[-1], e_p[-1])) # derivative of e
+
+      k.append(np.dot(ep[-2], e[-1])/np.linalg.norm(pt[1]))
+    k_t[t, :] = np.array(k)
+    e_t[t, :, :] = np.array(e).T
+
+  return k_t, e_t

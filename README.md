@@ -18,10 +18,10 @@ Repo for the "cycling RNN" project. Work in progress.
 
 ![image](https://cloud.githubusercontent.com/assets/7425776/22089543/d24447ae-ddb9-11e6-8368-d17a19085779.png)
 
-`get_generalized_curvature` estimates the osculating circle (light blue) and Frenet frame (black) at a point of an n-dimensional trajectory (green) from possibly noisy samples (blue dots) by fitting an order $d$ polynomial (red) and calculating explicitly from there. 
+`get_generalized_curvature` estimates the osculating circle (blue) and Frenet frame (black) at a point of an n-dimensional trajectory (green) from possibly noisy samples (blue) by locally fitting an order d polynomial (red) and calculating explicitly from there.
 
 -----------
 
 ## Data
 
-Data (not publicly available) is collected from monkeys performing a motor task. Data consists of motor cortex single electrode recordings and muscle recordings (EMG) from the arm. We fit an RNN to the EMG and analyze geometric properties of the model, which we compare to the M1 data. This project is part of an in-progress paper submission.
+Data (not publicly available) is collected from monkeys performing a motor task. Data consists of motor cortex single electrode recordings and muscle recordings (EMG) from the arm. We fit an RNN to the EMG and analyze geometric properties of the model, which we compare to the M1 data. This project is a work in progress.
