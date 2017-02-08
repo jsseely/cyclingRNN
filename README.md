@@ -9,7 +9,7 @@ Repo for the "cycling RNN" project. Work in progress.
 `wrapper.py` is a script that selects random hyperparameters and runs `train_rnn()`.
 
 `geometric.py` contains functions that perform geometric analyses of n-dimensional trajectories.
-    - `get_generalized_curvature()` numerically calculates the (generalized) curvature of an n-dimensional trajectory, specified by an array of shape `(t,n)` where `t` is the number of time points. Returns curvatures and Frenet frames. See [curvature of space curves](https://en.wikipedia.org/wiki/Curvature#Curvature_of_space_curves).
+  - `get_generalized_curvature()` numerically calculates the (generalized) curvature of an n-dimensional trajectory, specified by an array of shape `(t,n)` where `t` is the number of time points. Returns curvatures and Frenet frames. See [curvature of space curves](https://en.wikipedia.org/wiki/Curvature#Curvature_of_space_curves).
 
 `plotter.py`: after a particular run (set of hyperparameters) is finished, use this script to output `.pdf`s in the same directory that show summary analyses.
 
