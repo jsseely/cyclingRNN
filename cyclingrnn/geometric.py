@@ -3,16 +3,20 @@
   signals of shape (time, batch_size, dimension)
 """
 
+import numpy as np
+import tensorflow as tf
+import numpy.polynomial.polynomial as P
+
 def tangling(signal_in, alpha=0.1, dt=0.025):
-  '''
+  """
     Computes "tangling," a global-ish measure of curvature of a curve
-    Inputs
+    Args:
       signal_in: (T, batch_size, n) signal
       alpha: factor for how much to scale np.var() in the denominator
       dt: time units
-    Outputs
+    Returns
       Q: (T, batch_size) tangling metric
-  '''
+  """
   sig_diff = np.diff(signal_in, axis=0)
   signal_in = signal_in[1:, :, :]
   Q = np.zeros(signal_in.shape[:2])
@@ -24,32 +28,36 @@ def tangling(signal_in, alpha=0.1, dt=0.025):
       Q[t, b] = np.max(num/den)
   return Q
 
-def percent_tangling(x_in, y_in, th=1):
+def percent_tangling(x_in, y_in, alpha=0.1, th=1):
   """
     scalar summary of tangling() results
     percent tangling, i.e. percentage of points above the y=x line
-    Inputs
+    Args:
       x_in: (T, batch_size, n) signal
       y_in: (T, batch_size, n) reference signal
+      alpha: fed to tangling()
       th: threshold
-    Outputs
+    Returns:
       percent tangling scalar
   """
-  q_emg = tangling(y_in)
-  q_m1 = tangling(x_in)
-  ratio = q_m1/q_emg
+  q_y = tangling(y_in)
+  q_x = tangling(x_in)
+  ratio = q_x/q_y
   return np.true_divide(np.sum(ratio > th), ratio.size)
 
 def mean_tangling(x_in, alpha=0.1):
   """
     scalar summary of tangling() results
     mean tangling, i.e. just the mean...
-    Inputs
+    Args:
       x_in: (T, batch_size, n) signal
       alpha: fed to tangling()
+    Returns:
+      mean tangling: scalar
   """
   return np.mean(tangling(x_in, alpha=alpha))
 
+# TODO: remove
 def dist_tangling(x_in, y_in, alpha=0.1):
   """
     scalar summary of tangling() results
@@ -67,7 +75,7 @@ def dist_tangling(x_in, y_in, alpha=0.1):
   
 def mean_curvature_osculating(signal_in, filt_freq=None):
   """
-    mean curvature based on get_curvature() function
+    mean curvature based on get_curvature_osc() function
   """
   if filt_freq is not None:
     from scipy import signal
@@ -77,7 +85,7 @@ def mean_curvature_osculating(signal_in, filt_freq=None):
   C = signal_in.shape[1]
   k = np.zeros(signal_in.shape[:-1])
   for c in range(C):
-    k[:, c] = get_curvature(signal_in[:, c, :])
+    k[:, c] = get_curvature_osc(signal_in[:, c, :])
   k[k==0] = np.nan
   return np.nanmean(k, axis=(0,1))
   
@@ -108,6 +116,10 @@ def get_participation_ratio(signal_in):
     where evs are the eigenvalues of the covariance matrix of signal_in
     signal_in is shape (T, batch_size, n), which is reshaped to (T*batch_size, n)
     the covariance matrix is size (n, n)
+    Args:
+      signal_in: (T, batch_size, n)
+    Returns:
+      participation ratio: scalar
   """
   signal_in = np.reshape(signal_in, [-1, signal_in.shape[-1]], order='F')
   Cov = np.cov(signal_in.T)
@@ -117,7 +129,7 @@ def get_participation_ratio(signal_in):
 def tanh(x):
   return (np.exp(x) - np.exp(-x))/(np.exp(x) + np.exp(-x))
 def dtanh(x):
-  ''' derivative of tanh() '''
+  """ derivative of tanh() """
   return 1. - tanh(x)**2
 
 def get_jacobian(sim):
@@ -173,7 +185,7 @@ def get_path_length(signal_in, filt_freq=None):
     signal_in = signal.filtfilt(b, a, signal_in, axis=0)
   return np.sum(np.sum(np.diff(signal_in, axis=0)**2, axis=-1)**0.5, axis=0)
 
-def get_curvature(signal_in):
+def get_curvature_osc(signal_in):
   """
     Input: a (T, n) array
     Output: a (T,) array of curvature values
@@ -218,6 +230,13 @@ def get_generalized_curvature(signal_in, total_points, deg):
     Then calculate generalized curvature explicitly from the polynomial
     total_points: ~11
     deg: ~5
+    Args:
+      signal_in: (T, n)
+      total_points: number of points to use, ~11
+      deg: degree of polynomial, ~5
+    Returns:
+      k_t: curvatures
+      e_t: frenet frames
   """
 
   def dt_id1(a, ap):

@@ -13,9 +13,7 @@ from sklearn import decomposition
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-#import tensorflow as tf
 import pandas as pd
-#import datetime
 from sklearn.grid_search import ParameterGrid
 
 import pickle
@@ -23,7 +21,7 @@ import sys
 import pprint
 
 
-from cycling_rnn import *
+from cyclingrnn.train import *
 
 # TODO: call matlab plotter
 # TODO: make matlab plotter return actual values for the analyses
@@ -183,3 +181,37 @@ for sim, cur_params in enumerate(ParameterGrid(param_grid)):
                verticalalignment='bottom', horizontalalignment='left')
     f.savefig(pth+str(sim)+'curv.pdf', bbox_inches='tight', pad_inches=0.2)
     plt.close('all')
+
+### PLOTTING
+def make_pairgrid(d):
+  """
+    sns.PairGrid plotter for cycling data
+    in: (d1,d2,d3,d4)
+  """
+  df = pd.DataFrame(np.concatenate(d))
+  cond_labels = d[0].shape[0]*['fw top'] + d[1].shape[0]*['fw bot'] + d[2].shape[0]*['bw top'] + d[3].shape[0]*['bw bot']
+  df['condition'] = cond_labels
+  g = sns.PairGrid(df, hue='condition', diag_sharey=True)
+  g.map_diag(plt.hist)
+  g.map_offdiag(plt.plot)
+  g.add_legend()
+  return g
+
+def plot_eigs(A_mat):
+  """
+    Docstring
+  """
+  w, _ = np.linalg.eig(A_mat)
+  re_w = np.real(w)
+  im_w = np.imag(w)
+  f = plt.figure(figsize=(10, 10))
+  plt.plot(re_w, im_w, 'o', alpha=0.9)
+  theta = np.linspace(0, 2*np.pi, num=50)
+  x_cir = np.cos(theta)
+  y_cir = np.sin(theta)
+  plt.plot(x_cir, y_cir, 'k', linewidth=0.5, alpha=0.5)
+  plt.plot([-100, 100], [0, 0], 'k', linewidth=0.5, alpha=0.5)
+  plt.plot([0, 0], [-100, 100], 'k', linewidth=0.5, alpha=0.5)
+  plt.xlim([-1.5, 1.5])
+  plt.ylim([-1.5, 1.5])
+  return f

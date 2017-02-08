@@ -23,7 +23,7 @@ from tensorflow.python.ops.math_ops import tanh
 
 from tensorflow.python.platform import tf_logging as logging
 # Comment out nest import for Yeti cluster (why?)
-#from tensorflow.python.util import nest
+from tensorflow.python.util import nest
 
 ### custom
 from tensorflow.python.ops import random_ops
