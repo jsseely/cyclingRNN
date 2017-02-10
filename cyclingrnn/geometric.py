@@ -31,7 +31,7 @@ def tangling(signal_in, alpha=0.1, dt=0.025):
 def percent_tangling(x_in, y_in, alpha=0.1, th=1):
   """
     scalar summary of tangling() results
-    percent tangling, i.e. percentage of points above the y=x line
+    percent tangling, i.e. percentage of points below the y=th*x line
     Args:
       x_in: (T, batch_size, n) signal
       y_in: (T, batch_size, n) reference signal
@@ -42,7 +42,7 @@ def percent_tangling(x_in, y_in, alpha=0.1, th=1):
   """
   q_y = tangling(y_in)
   q_x = tangling(x_in)
-  ratio = q_x/q_y
+  ratio = q_y/q_x
   return np.true_divide(np.sum(ratio > th), ratio.size)
 
 def mean_tangling(x_in, alpha=0.1):
@@ -132,7 +132,7 @@ def dtanh(x):
   """ derivative of tanh() """
   return 1. - tanh(x)**2
 
-def get_jacobian(sim):
+def get_jacobian(sim, RUN):
   """
     get the jacobian matrix of the RNN
     output: J, a function that takes x, u as vector inputs and returns the jacobian evaluated at those points
@@ -144,20 +144,20 @@ def get_jacobian(sim):
     new_saver = tf.train.import_meta_graph(TF_PATH+'.meta')
     new_saver.restore(sess, TF_PATH)
     # Get Mat variable
-    Mat = sess.run([v for v in tf.all_variables() if v.name == 'RNN/BasicRNNCellNoise/Linear/Matrix:0'][0])
+    Mat = sess.run([v for v in tf.global_variables() if v.name == 'RNN/BasicRNNCellNoise/Linear/Matrix:0'][0]) #NOTE:
     A = Mat[2:]
     B = Mat[:2]
   def J(x, u):
     return np.dot(A, np.diag(dtanh(np.dot(A.T, x) + np.dot(B.T, u))))
   return J
 
-def get_sum_of_jacobians(sim, x_in, u_in, norm='fro', squared=True):
+def get_sum_of_jacobians(sim, RUN, x_in, u_in, norm='fro', squared=True):
   """
     get the jacobian and evaluate it at every point in x_in (T, batch_size, n).
     take the norm of the jacobian using `norm` (use 'trace' to caculate divergence)
     average across T and batch_size.
   """
-  J = get_jacobian(sim)
+  J = get_jacobian(sim, RUN)
   R = 0
   for t in range(x_in.shape[0]):
     for c in range(x_in.shape[1]):

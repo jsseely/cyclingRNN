@@ -83,7 +83,7 @@ def train_rnn(monkey='D',
               stddev_state=0.0,
               stddev_out=0.0,
               activation='tanh',
-              rnn_init='orth',
+              rnn_init=None,
               num_neurons=100,
               learning_rate=0.0001,
               num_iters=2000,
@@ -187,11 +187,15 @@ def train_rnn(monkey='D',
   elif rnn_init == 'normal':
     rnn_initializer = tf.random_normal_initializer(1/np.sqrt(n))
 
-  # get a tf var scope to set the rnn initializer. 
-  with tf.variable_scope('RNN', initializer=rnn_initializer) as scope:
-    pass
+  # get a tf var scope to set the rnn initializer.
+  if rnn_init is not None: 
+    with tf.variable_scope('RNN', initializer=rnn_initializer) as scope:
+      pass
+  else:
+    scope=None
 
-  cell = tf.nn.rnn_cell.BasicRNNCell(n, activation=activation)
+  #cell = tf.nn.rnn_cell.BasicRNNCell(n, activation=activation)
+  cell = BasicRNNCellNoise(n, activation=activation, stddev=0.0)  
   output, state = tf.nn.dynamic_rnn(cell, U, sequence_length=4*[sequence_length[0]]+4*[sequence_length[1]]+4*[sequence_length[2]], initial_state=x0, dtype=tf.float32, time_major=True, scope=scope)
 
   Y_hat = tf.reshape(output, (time_steps*batch_size, n))
@@ -199,7 +203,7 @@ def train_rnn(monkey='D',
   Y_hat = tf.reshape(Y_hat, (time_steps, batch_size, p), name='Y_hat')
 
   # Get RNN variables
-  with tf.variable_scope('RNN/BasicRNNCell/Linear', reuse=True):
+  with tf.variable_scope('RNN/BasicRNNCellNoise/Linear', reuse=True):
     Mat = tf.get_variable('Matrix') #note: calling an initializer here will not give it a new one. 
     A = tf.gather(tf.get_variable('Matrix'), range(m, m+n))
     B = tf.gather(tf.get_variable('Matrix'), range(0, m))

@@ -36,8 +36,8 @@ def dtw_sigerr_R(x, y):
   x_ = []
   y_ = []
   for c in range(x.shape[1]):
-    x_.append(x[path[c][0], c, :])
-    y_.append(y[path[c][1], c, :])
+    x_.append(x[path[c][0][5:-5], c, :]) # TODO: fix
+    y_.append(y[path[c][1][5:-5], c, :])
   x_ = np.concatenate(x_)
   y_ = np.concatenate(y_)
   err = r2_sigerr(x_, y_)
@@ -49,7 +49,7 @@ def dtw_sigerr_R(x, y):
 def dtw_sigerr_P(x, y):
   """ dynamic time warping error (python package) """
   def mydist(x, y):
-    return np.linalg.norm(x-y, ord=np.inf)
+    return np.linalg.norm(x-y)
   dist = []
   path = []
   for c in range(x.shape[1]):
@@ -60,8 +60,8 @@ def dtw_sigerr_P(x, y):
   x_ = []
   y_ = []
   for c in range(x.shape[1]):
-    x_.append(x[path[c][0], c, :])
-    y_.append(y[path[c][1], c, :])
+    x_.append(x[path[c][0][10:-10], c, :])
+    y_.append(y[path[c][1][10:-10], c, :])
   x_ = np.concatenate(x_)
   y_ = np.concatenate(y_)
   err = r2_sigerr(x_, y_)
