@@ -25,13 +25,14 @@ cur_params['monkey']        = str(sys.argv[3])
 cur_params['beta1']         = 10**np.random.uniform(-6, 0)
 cur_params['beta2']         = 10**np.random.uniform(-6, 0)
 cur_params['activation']    = np.random.choice(['tanh', 'linear'])
-cur_params['stddev_state']  = 0.
+cur_params['stddev_state']  = 10**np.random.uniform(-6, -2)
 cur_params['stddev_out']    = 0.
-cur_params['num_neurons']   = np.random.randint(10, 100)
-cur_params['rnn_init']      = 'orth'
+cur_params['num_neurons']   = 100
+cur_params['rnn_init']      = np.random.choice(['orth', 'xavier'])
+cur_params['learning_rate'] = 10**np.random.uniform(-6, -2)
 
 # fixed parameters
-LEARNING_RATE = 0.0003
+#LEARNING_RATE = 0.0003
 NUM_ITERS = 20000
 LOAD_PREV = False
 
@@ -73,7 +74,7 @@ Y_TF, X_TF = train_rnn(monkey=cur_params['monkey'],
                        activation=cur_params['activation'],
                        rnn_init=cur_params['rnn_init'],
                        num_neurons=cur_params['num_neurons'],
-                       learning_rate=LEARNING_RATE,
+                       learning_rate=cur_params['learning_rate'],
                        num_iters=NUM_ITERS,
                        save_model_path=TFSAVE_PATH+str(CUR_SIM),
                        tb_path=TB_PATH+str(CUR_SIM))

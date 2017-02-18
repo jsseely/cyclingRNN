@@ -57,21 +57,11 @@ def mean_tangling(x_in, alpha=0.1):
   """
   return np.mean(tangling(x_in, alpha=alpha))
 
-# TODO: remove
-def dist_tangling(x_in, y_in, alpha=0.1):
-  """
-    scalar summary of tangling() results
-    sum of signed squared distances of [x_in, y_in] from diagonal
-    todo: sum of signed squared distances?
-  """
-  q_y = tangling(y_in, alpha=alpha)
-  q_x = tangling(x_in, alpha=alpha)
-  q = np.array((q_y.flatten(), q_x.flatten()))
-  ones = np.ones_like(q)
-  sign = (q[0,:] > q[1,:]).astype('int')
-  sign[sign==0] = -1 # above or below diagonal?
-  # next line just implements distance calculation. maybe not efficient.
-  return np.sum(sign*np.linalg.norm(np.diag(np.dot(q.T, ones))/2.*ones - q, axis=0))
+def tangling_cdf(x_in, cutoff=0.95, alpha=0.1):
+  q = tangling(x_in, alpha=alpha)
+  q = np.sort(q.flatten())
+  return q[np.floor(cutoff*q.size).astype('int')]
+
   
 def mean_curvature_osculating(signal_in, filt_freq=None):
   """

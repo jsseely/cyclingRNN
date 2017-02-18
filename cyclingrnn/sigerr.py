@@ -1,6 +1,8 @@
 # signal errors
 import numpy as np
 from sklearn import metrics
+import sys
+sys.path.append('./dtw/') # ./dtw works but ../dtw doesnt 
 from dtw import dtw
 
 def r2_sigerr(x, y):

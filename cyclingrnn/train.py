@@ -1,6 +1,7 @@
 """
   A collection of functions for the 'cycling RNN' project.
   run_rnn is the main function that builds the tensorflow graph and does the training.
+  # TODO: fix the MSE term... no reduce_sum dude..
 """
 import os
 import numpy as np
@@ -77,7 +78,7 @@ def create_input_array(shape_in):
   u_out[:, 3, 1] = 1
   return u_out
 
-def train_rnn(monkey='D',
+def train_rnn(monkey,
               beta1=0.0,
               beta2=0.0,
               stddev_state=0.0,
@@ -195,7 +196,7 @@ def train_rnn(monkey='D',
     scope=None
 
   #cell = tf.nn.rnn_cell.BasicRNNCell(n, activation=activation)
-  cell = BasicRNNCellNoise(n, activation=activation, stddev=0.0)  
+  cell = BasicRNNCellNoise(n, activation=activation, stddev=noise_state)  
   output, state = tf.nn.dynamic_rnn(cell, U, sequence_length=4*[sequence_length[0]]+4*[sequence_length[1]]+4*[sequence_length[2]], initial_state=x0, dtype=tf.float32, time_major=True, scope=scope)
 
   Y_hat = tf.reshape(output, (time_steps*batch_size, n))
@@ -211,24 +212,23 @@ def train_rnn(monkey='D',
 
   # Training ops
   # take L2 loss only over data points. note that dynamic_rnn zeros out output, but not y_hat because we have the bias vector d
-  cost_term1 = 0.5*tf.reduce_sum((Y_hat[:sequence_length[0], :4, :] - Y[:sequence_length[0], :4, :])**2)
-  cost_term1 += 0.5*tf.reduce_sum((Y_hat[:sequence_length[1], 4:8, :] - Y[:sequence_length[1], 4:8, :])**2)
-  cost_term1 += 0.5*tf.reduce_sum((Y_hat[:sequence_length[2], 8:, :] - Y[:sequence_length[2], 8:, :])**2)
-  cost_term1 = cost_term1/total_data_points
+  cost_term1 = tf.reduce_sum((Y_hat[:sequence_length[0], :4, :] - Y[:sequence_length[0], :4, :])**2)
+  cost_term1 += tf.reduce_sum((Y_hat[:sequence_length[1], 4:8, :] - Y[:sequence_length[1], 4:8, :])**2)
+  cost_term1 += tf.reduce_sum((Y_hat[:sequence_length[2], 8:, :] - Y[:sequence_length[2], 8:, :])**2)
+  cost_term1 = 0.5*cost_term1/total_data_points
 
-  cost_term2 = beta1*0.5*tf.reduce_sum(A**2)
-  cost_term3 = beta2*0.5*tf.reduce_sum(C**2)
+  cost_term2 = beta1*tf.nn.l2_loss(A)
+  cost_term3 = beta2*tf.nn.l2_loss(C)
   cost = cost_term1 + cost_term2 + cost_term3
 
   train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)
-  opt_op = train_op.minimize(cost)
+  gvs = train_op.compute_gradients(cost)
+  sg = [tf.summary.scalar('norm_grad'+var.name[:-2], 2*tf.nn.l2_loss(grad)) for grad, var in gvs] # var.name = 'namescope/V:0' and we want just 'V'
+  clipped_gvs = [(tf.clip_by_norm(grad, 100.), var) for grad, var in gvs]
+  opt_op = train_op.apply_gradients(clipped_gvs)
 
   # Summary ops
-  tf.summary.scalar('loss', cost)
-  tf.summary.scalar('log_loss', tf.log(cost))
-  tf.summary.scalar('cost_1', cost_term1)
-  tf.summary.scalar('cost_2', cost_term2)
-  tf.summary.scalar('cost_3', cost_term3)
+  tf.summary.scalar('log_loss', tf.log(cost))  
 
   merged_summary_op = tf.summary.merge_all()
 
@@ -237,7 +237,7 @@ def train_rnn(monkey='D',
 
   # Train
   with tf.Session() as sess:
-    summary_writer = tf.summary.FileWriter(tb_path, graph=sess.graph)
+    summary_writer = tf.summary.FileWriter(tb_path)
     sess.run(tf.global_variables_initializer())
     # TODO: fix restore. new tf version saves files differently?
     if load_prev and os.path.exists(load_model_path):
@@ -249,10 +249,10 @@ def train_rnn(monkey='D',
                    noise_state: stddev_state}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
 
-      if i % 50 == 0:
+      if i % 500 == 0:
         summary_writer.add_summary(summary_str, i)
 
-      if i % 500 == 0:
+      if i % 1000 == 0:
         print '  iter:', '%04d' % (i), \
               '  Loss:', '{:.6f}'.format(loss_val)
 
@@ -264,5 +264,7 @@ def train_rnn(monkey='D',
 
     # Simulate
     y_tf, x_tf = sess.run([Y_hat, output], feed_dict=feed_dict)
+
+    summary_writer.close()
 
   return y_tf, x_tf

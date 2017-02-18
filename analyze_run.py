@@ -110,7 +110,7 @@ def get_noise_robustness(sim, y_data, u_data, conds, emg, err_f=sigerr.mse_siger
     new_saver = tf.train.import_meta_graph(TF_PATH+'.meta')
     new_saver.restore(sess, TF_PATH)
     # Get Mat variable
-    Mat = sess.run([v for v in tf.global_variables() if v.name == 'RNN/BasicRNNCellNoise/Linear/Matrix:0'][0])
+    Mat = sess.run([v for v in tf.global_variables() if v.name == 'RNN/BasicRNNCellNoise/Linear/Matrix:0'][0]) # can just run with the string... 
     A = Mat[2:]
     B = Mat[:2]
 
@@ -119,7 +119,7 @@ def get_noise_robustness(sim, y_data, u_data, conds, emg, err_f=sigerr.mse_siger
     
     stddev_struct = 0.
     stddev_state = 0.
-    for i_state, stddev_state in enumerate(np.logspace(-1.1, 2, num=num), desc='std dev state', leave=False):
+    for i_state, stddev_state in enumerate(np.logspace(-3, 2, num=num)):
       for tr in range(trials):
         newMat = np.zeros(Mat.shape)
         newMat[:2] = B
@@ -138,7 +138,7 @@ def get_noise_robustness(sim, y_data, u_data, conds, emg, err_f=sigerr.mse_siger
     stddev_state_out = stddev_state
     stddev_struct = 0.
     stddev_state = 0.
-    for i_struct, stddev_struct in enumerate(np.logspace(-2.1, 1, num=num), desc='std dev struct', leave=False):
+    for i_struct, stddev_struct in enumerate(np.logspace(-5, 0, num=num)):
       for tr in range(trials):
         newMat = np.zeros(Mat.shape)
         newMat[:2] = B
@@ -160,10 +160,17 @@ def evaluate_run(conds, RUN):
   """
     Evaluate a RUN (all simulations) for a specified choice of conditions (conds)
   """
-  # Number of sims in RUN
-  total_sims = len([i for i in os.listdir(RUN+'mlsaves') if i!='.DS_Store'])
+  # process directory information
+  data_files = [i for i in os.listdir(RUN+'npsaves/') if i.endswith('x.npy')]
+  sim_nums = [i.replace('x.npy', '') for i in data_files]
+  param_files = [i+'params.pickle' for i in sim_nums]
+
+  assert len(data_files) == len(param_files)
+
+  total_sims = len(data_files)
+
   # Get monkey
-  cur_params = pickle.load(open(RUN+'npsaves/'+str(1)+'params.pickle', 'rb'))
+  cur_params = pickle.load(open(RUN+'npsaves/'+param_files[0], 'rb'))
   # build input and output data
   if cur_params['monkey']=='D':
     data = sio.loadmat('./drakeFeb_processed.mat')
@@ -175,7 +182,7 @@ def evaluate_run(conds, RUN):
 
   params = []
   out_metrics = []
-  for sim in range(1,total_sims+1):
+  for iteration, sim in enumerate([int(i) for i in sim_nums]):
     cur_params = pickle.load(open(RUN+'npsaves/'+str(sim)+'params.pickle', 'rb'))
     x = np.load(RUN+'npsaves/'+str(sim)+'x.npy')
     y = np.load(RUN+'npsaves/'+str(sim)+'y.npy')
@@ -194,25 +201,40 @@ def evaluate_run(conds, RUN):
     # get params
     params.append(cur_params)
 
-    mets = dict()
-    # Tangling
-    mets['percent_tangling1'] = geo.percent_tangling(x_trunc, emg_, th=1) # note condition truncation on emg
-    mets['percent_tangling2'] = geo.percent_tangling(x_trunc, emg_, th=2) # note condition truncation on emg
-    mets['percent_tangling3'] = geo.percent_tangling(x_trunc, emg_, th=3) # note condition truncation on emg
-    
-    mets['path_length'] = np.sum(geo.get_path_length(x_trunc, filt_freq=0.25))
-    mets['mean_curvature'] = geo.mean_curvature(x_trunc, total_points=11, deg=4, normalize=True)
+    try:
+      mets = dict()
+      R2 = metrics.r2_score(np.reshape(emg_, [-1, emg_.shape[-1]]),
+                            np.reshape(y_trunc, [-1, y_trunc.shape[-1]]), multioutput='uniform_average') # condition truncation on emg
+      if R2 > 0.5:
+        mets['sim_num'] = sim
 
-    mets['MSE'] = metrics.mean_squared_error(np.reshape(emg_, [-1,emg_.shape[-1]]),
-                                              np.reshape(y_trunc, [-1, y_trunc.shape[-1]]), multioutput='uniform_average') # condition truncation on emg
-    mets['R2'] = metrics.r2_score(np.reshape(emg_, [-1, emg_.shape[-1]]),
-                                  np.reshape(y_trunc, [-1, y_trunc.shape[-1]]), multioutput='uniform_average') # condition truncation on emg
-    
-    err_fun = sigerr.dtw_sigerr_P
-    mets['noise_robustness'], mets['struct_robustness'] = get_noise_robustness(sim, emg_full, u_full,
-                                                                               conds, emg, err_fun, dtw_err=True, num=80, trials=4)
-    out_metrics.append(mets)
-    if sim % 50 == 0:
+        mets['percent_tangling1_01']  = geo.percent_tangling( x_trunc, emg_, th=1, alpha=0.1 ) # note condition truncation on emg
+        mets['percent_tangling2_01']  = geo.percent_tangling( x_trunc, emg_, th=2, alpha=0.1 ) # note condition truncation on emg
+        mets['percent_tangling3_01']  = geo.percent_tangling( x_trunc, emg_, th=3, alpha=0.1 ) # note condition truncation on emg
+        mets['percent_tangling1_001'] = geo.percent_tangling( x_trunc, emg_, th=1, alpha=0.01 ) # note condition truncation on emg
+        mets['percent_tangling2_001'] = geo.percent_tangling( x_trunc, emg_, th=2, alpha=0.01 ) # note condition truncation on emg
+        mets['percent_tangling3_001'] = geo.percent_tangling( x_trunc, emg_, th=3, alpha=0.01 ) # note condition truncation on emg
+
+        mets['tangling_90_01']  = geo.tangling_cdf( x_trunc, cutoff=0.90, alpha=0.1  )
+        mets['tangling_90_001'] = geo.tangling_cdf( x_trunc, cutoff=0.95, alpha=0.01 )
+        mets['tangling_95_01']  = geo.tangling_cdf( x_trunc, cutoff=0.90, alpha=0.1  )
+        mets['tangling_90_001'] = geo.tangling_cdf( x_trunc, cutoff=0.95, alpha=0.01 )
+        
+        mets['path_length'] = np.sum(geo.get_path_length(x_trunc, filt_freq=0.25))
+        mets['mean_curvature'] = geo.mean_curvature(x_trunc, total_points=11, deg=4, normalize=True)
+
+        mets['MSE'] = metrics.mean_squared_error(np.reshape(emg_, [-1,emg_.shape[-1]]),
+                                                  np.reshape(y_trunc, [-1, y_trunc.shape[-1]]), multioutput='uniform_average') # condition truncation on emg
+        mets['R2'] = R2
+        
+        err_fun = sigerr.dtw_sigerr_P
+        mets['noise_robustness'], mets['struct_robustness'] = get_noise_robustness(sim, emg_full, u_full,
+                                                                                   conds, emg, err_fun, dtw_err=True, num=100, trials=5)
+        out_metrics.append(mets)
+    except:
+      pass
+
+    if iteration % 50 == 0:
       print 'Sim completed: ', sim
     
   return params, out_metrics
@@ -227,8 +249,8 @@ def process_dataframe(params, out_metrics):
   df = df.join(metrics_df)
   
   # remove bad fits
-  inds = df['R2'] > 0.5
-  df = df[inds]
+  #inds = df['R2'] > 0.5
+  #df = df[inds]
   
   #Split the generalized curvature columns into multiple columns, one for each curvature
   mc = df['mean_curvature'].apply(pd.Series)
@@ -240,7 +262,8 @@ def process_dataframe(params, out_metrics):
   
   return df
 
-RUNset = ['./saves/170208D/', './saves/170208C/']
+
+RUNset = ['./saves/170218D/', './saves/170218C/']
 condset = [[0,1], [0,1,2,3]]
 
 for RUN in RUNset:
