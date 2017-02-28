@@ -17,23 +17,24 @@ import os
 import numpy as np
 import scipy.io as sio
 import pickle
+import random
 from cyclingrnn.train import train_rnn
 
 # hyperparameters
 cur_params = {}
 cur_params['monkey']        = str(sys.argv[3])
-cur_params['beta1']         = 10**np.random.uniform(-6, 0)
-cur_params['beta2']         = 10**np.random.uniform(-6, 0)
-cur_params['activation']    = np.random.choice(['tanh', 'linear'])
-cur_params['stddev_state']  = 10**np.random.uniform(-6, -2)
+cur_params['beta1']         = 10**np.random.uniform(-3, 3)
+cur_params['beta2']         = 10**np.random.uniform(-3, 3)
+cur_params['activation']    = random.choice(['tanh'])
+cur_params['stddev_state']  = 10**np.random.uniform(-6, -3)
 cur_params['stddev_out']    = 0.
 cur_params['num_neurons']   = 100
-cur_params['rnn_init']      = np.random.choice(['orth', 'xavier'])
-cur_params['learning_rate'] = 10**np.random.uniform(-6, -2)
+cur_params['rnn_init']      = random.choice(['orth'])
+cur_params['learning_rate'] = 10**np.random.uniform(-5, -3)
 
 # fixed parameters
 #LEARNING_RATE = 0.0003
-NUM_ITERS = 20000
+NUM_ITERS = 50000
 LOAD_PREV = False
 
 # current run and paths
@@ -58,6 +59,7 @@ def make_dir(path):
 make_dir(NPSAVE_PATH)
 make_dir(TFSAVE_PATH)
 make_dir(MLSAVE_PATH)
+make_dir(TB_PATH)
 
 print 'Current Run: '+CUR_RUN
 

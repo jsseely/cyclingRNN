@@ -198,8 +198,6 @@ def evaluate_run(conds, RUN):
 
     emg_ = emg[:, conds, :]
 
-    # get params
-    params.append(cur_params)
 
     try:
       mets = dict()
@@ -216,9 +214,9 @@ def evaluate_run(conds, RUN):
         mets['percent_tangling3_001'] = geo.percent_tangling( x_trunc, emg_, th=3, alpha=0.01 ) # note condition truncation on emg
 
         mets['tangling_90_01']  = geo.tangling_cdf( x_trunc, cutoff=0.90, alpha=0.1  )
-        mets['tangling_90_001'] = geo.tangling_cdf( x_trunc, cutoff=0.95, alpha=0.01 )
-        mets['tangling_95_01']  = geo.tangling_cdf( x_trunc, cutoff=0.90, alpha=0.1  )
-        mets['tangling_90_001'] = geo.tangling_cdf( x_trunc, cutoff=0.95, alpha=0.01 )
+        mets['tangling_90_001'] = geo.tangling_cdf( x_trunc, cutoff=0.90, alpha=0.01 )
+        mets['tangling_95_01']  = geo.tangling_cdf( x_trunc, cutoff=0.95, alpha=0.1  )
+        mets['tangling_95_001'] = geo.tangling_cdf( x_trunc, cutoff=0.95, alpha=0.01 )
         
         mets['path_length'] = np.sum(geo.get_path_length(x_trunc, filt_freq=0.25))
         mets['mean_curvature'] = geo.mean_curvature(x_trunc, total_points=11, deg=4, normalize=True)
@@ -231,11 +229,15 @@ def evaluate_run(conds, RUN):
         mets['noise_robustness'], mets['struct_robustness'] = get_noise_robustness(sim, emg_full, u_full,
                                                                                    conds, emg, err_fun, dtw_err=True, num=100, trials=5)
         out_metrics.append(mets)
+    
+        # get params
+        params.append(cur_params)
+
     except:
       pass
 
     if iteration % 50 == 0:
-      print 'Sim completed: ', sim
+      print 'Sim completed: ', iteration
     
   return params, out_metrics
 
@@ -263,7 +265,7 @@ def process_dataframe(params, out_metrics):
   return df
 
 
-RUNset = ['./saves/170218D/', './saves/170218C/']
+RUNset = ['./saves/170222D/', './saves/170222C/']
 condset = [[0,1], [0,1,2,3]]
 
 for RUN in RUNset:

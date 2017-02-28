@@ -3,12 +3,16 @@
   run_rnn is the main function that builds the tensorflow graph and does the training.
   # TODO: fix the MSE term... no reduce_sum dude..
 """
+#from __future__ import absolute_import
+
 import os
 import numpy as np
 import tensorflow as tf
 import scipy.io as sio
 from scipy import signal
 from cyclingrnn.custom_rnn_cells import BasicRNNCellNoise
+
+
 
 def preprocess_array(array, alpha=0):
   """
@@ -84,7 +88,7 @@ def train_rnn(monkey,
               stddev_state=0.0,
               stddev_out=0.0,
               activation='tanh',
-              rnn_init=None,
+              rnn_init='default',
               num_neurons=100,
               learning_rate=0.0001,
               num_iters=2000,
@@ -111,9 +115,15 @@ def train_rnn(monkey,
 
   # TODO: just load *_preprocessed.mat data.
   if monkey == 'D':
-    data = sio.loadmat('./drakeFeb.mat') #TODO: fix, '../' or './' depending on whether running from wrapper or not
+    try:
+      data = sio.loadmat('./drakeFeb.mat') #TODO: fix, '../' or './' depending on whether running from wrapper or not
+    except:
+      data = sio.loadmat('../drakeFeb.mat')
   elif monkey == 'C':
-    data = sio.loadmat('./cousFeb.mat')
+    try:
+      data = sio.loadmat('./cousFeb.mat')
+    except:
+      data = sio.loadmat('../cousFeb.mat')
 
   # Set activation
   if activation == 'tanh':
@@ -187,6 +197,8 @@ def train_rnn(monkey,
     rnn_initializer = tf.contrib.layers.xavier_initializer()
   elif rnn_init == 'normal':
     rnn_initializer = tf.random_normal_initializer(1/np.sqrt(n))
+  elif rnn_init == 'default':
+    rnn_init = None # assign to rnn_init not rnn_initializer. 
 
   # get a tf var scope to set the rnn initializer.
   if rnn_init is not None: 
@@ -224,11 +236,16 @@ def train_rnn(monkey,
   train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)
   gvs = train_op.compute_gradients(cost)
   sg = [tf.summary.scalar('norm_grad'+var.name[:-2], 2*tf.nn.l2_loss(grad)) for grad, var in gvs] # var.name = 'namescope/V:0' and we want just 'V'
-  clipped_gvs = [(tf.clip_by_norm(grad, 100.), var) for grad, var in gvs]
+  clipped_gvs = [(tf.clip_by_norm(grad, 100000.), var) for grad, var in gvs]
+  sg_clip = [tf.summary.scalar('norm_grad_clipped'+var.name[:-2], 2*tf.nn.l2_loss(grad)) for grad, var in clipped_gvs] # var.name = 'namescope/V:0' and we want just 'V'
+
   opt_op = train_op.apply_gradients(clipped_gvs)
 
   # Summary ops
   tf.summary.scalar('log_loss', tf.log(cost))  
+  tf.summary.scalar('log_cost1', tf.log(cost_term1))  
+  tf.summary.scalar('log_cost2', tf.log(cost_term2))  
+  tf.summary.scalar('log_cost3', tf.log(cost_term3))  
 
   merged_summary_op = tf.summary.merge_all()
 
@@ -249,7 +266,7 @@ def train_rnn(monkey,
                    noise_state: stddev_state}
       _, loss_val, summary_str = sess.run([opt_op, cost, merged_summary_op], feed_dict=feed_dict)
 
-      if i % 500 == 0:
+      if i % 200 == 0: 
         summary_writer.add_summary(summary_str, i)
 
       if i % 1000 == 0:
