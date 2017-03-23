@@ -119,7 +119,7 @@ def get_noise_robustness(sim, y_data, u_data, conds, emg, err_f=sigerr.mse_siger
     
     stddev_struct = 0.
     stddev_state = 0.
-    for i_state, stddev_state in enumerate(np.logspace(-3, 2, num=num)):
+    for i_state, stddev_state in enumerate(np.logspace(-3, 1, num=num)):
       for tr in range(trials):
         newMat = np.zeros(Mat.shape)
         newMat[:2] = B
@@ -138,7 +138,7 @@ def get_noise_robustness(sim, y_data, u_data, conds, emg, err_f=sigerr.mse_siger
     stddev_state_out = stddev_state
     stddev_struct = 0.
     stddev_state = 0.
-    for i_struct, stddev_struct in enumerate(np.logspace(-5, 0, num=num)):
+    for i_struct, stddev_struct in enumerate(np.logspace(-4, 0, num=num)):
       for tr in range(trials):
         newMat = np.zeros(Mat.shape)
         newMat[:2] = B
@@ -228,6 +228,9 @@ def evaluate_run(conds, RUN):
         err_fun = sigerr.dtw_sigerr_P
         mets['noise_robustness'], mets['struct_robustness'] = get_noise_robustness(sim, emg_full, u_full,
                                                                                    conds, emg, err_fun, dtw_err=True, num=100, trials=5)
+        err_fun = sigerr.r2_sigerr
+        mets['noise_robustness_r2'], mets['struct_robustness_r2'] = get_noise_robustness(sim, emg_full, u_full,
+                                                                                         conds, emg, err_fun, dtw_err=False, num=100, trials=5)
         out_metrics.append(mets)
     
         # get params
@@ -265,8 +268,8 @@ def process_dataframe(params, out_metrics):
   return df
 
 
-RUNset = ['./saves/170222D/', './saves/170222C/']
-condset = [[0,1], [0,1,2,3]]
+RUNset = ['./saves/170305D/', './saves/170305C/']
+condset = [[0,1,2,3]]
 
 for RUN in RUNset:
   for conds in condset:

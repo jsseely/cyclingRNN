@@ -83,6 +83,7 @@ def create_input_array(shape_in):
   return u_out
 
 def train_rnn(monkey,
+              beta0=0.0,
               beta1=0.0,
               beta2=0.0,
               stddev_state=0.0,
@@ -224,6 +225,11 @@ def train_rnn(monkey,
 
   # Training ops
   # take L2 loss only over data points. note that dynamic_rnn zeros out output, but not y_hat because we have the bias vector d
+  cost_term0 = tf.reduce_sum((output[:sequence_length[0], :4, :])**2)
+  cost_term0 += tf.reduce_sum((output[:sequence_length[1], 4:8, :])**2)
+  cost_term0 += tf.reduce_sum((output[:sequence_length[2], 8:, :])**2)
+  cost_term0 = beta0*0.5*cost_term0/total_data_points
+
   cost_term1 = tf.reduce_sum((Y_hat[:sequence_length[0], :4, :] - Y[:sequence_length[0], :4, :])**2)
   cost_term1 += tf.reduce_sum((Y_hat[:sequence_length[1], 4:8, :] - Y[:sequence_length[1], 4:8, :])**2)
   cost_term1 += tf.reduce_sum((Y_hat[:sequence_length[2], 8:, :] - Y[:sequence_length[2], 8:, :])**2)
@@ -231,7 +237,7 @@ def train_rnn(monkey,
 
   cost_term2 = beta1*tf.nn.l2_loss(A)
   cost_term3 = beta2*tf.nn.l2_loss(C)
-  cost = cost_term1 + cost_term2 + cost_term3
+  cost = cost_term0 + cost_term1 + cost_term2 + cost_term3
 
   train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)
   gvs = train_op.compute_gradients(cost)
@@ -242,7 +248,8 @@ def train_rnn(monkey,
   opt_op = train_op.apply_gradients(clipped_gvs)
 
   # Summary ops
-  tf.summary.scalar('log_loss', tf.log(cost))  
+  tf.summary.scalar('log_loss', tf.log(cost))
+  tf.summary.scalar('log_cost0', tf.log(cost_term0))  
   tf.summary.scalar('log_cost1', tf.log(cost_term1))  
   tf.summary.scalar('log_cost2', tf.log(cost_term2))  
   tf.summary.scalar('log_cost3', tf.log(cost_term3))  

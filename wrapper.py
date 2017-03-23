@@ -23,10 +23,11 @@ from cyclingrnn.train import train_rnn
 # hyperparameters
 cur_params = {}
 cur_params['monkey']        = str(sys.argv[3])
-cur_params['beta1']         = 10**np.random.uniform(-3, 3)
-cur_params['beta2']         = 10**np.random.uniform(-3, 3)
+cur_params['beta0']         = 10**np.random.uniform(-4, 2)
+cur_params['beta1']         = 10**np.random.uniform(-4, 0)
+cur_params['beta2']         = 10**np.random.uniform(-6, 2)
 cur_params['activation']    = random.choice(['tanh'])
-cur_params['stddev_state']  = 10**np.random.uniform(-6, -3)
+cur_params['stddev_state']  = 10**np.random.uniform(-4, -1)
 cur_params['stddev_out']    = 0.
 cur_params['num_neurons']   = 100
 cur_params['rnn_init']      = random.choice(['orth'])
@@ -69,6 +70,7 @@ pickle.dump(cur_params, open(NPSAVE_PATH+str(CUR_SIM)+'params.pickle', 'wb'))
 print cur_params
 
 Y_TF, X_TF = train_rnn(monkey=cur_params['monkey'],
+                       beta0=cur_params['beta0'],
                        beta1=cur_params['beta1'],
                        beta2=cur_params['beta2'],
                        stddev_state=cur_params['stddev_state'],
